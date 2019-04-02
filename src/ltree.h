@@ -366,9 +366,9 @@ F_WUNUSED F_NONNULL
 bool ltree_add_rec_soa_args(const zone_t* zone, const uint8_t* dname, lt_soa_args args);
 #define ltree_add_rec_soa(_z,_d,...) ltree_add_rec_soa_args(_z,_d,(lt_soa_args){__VA_ARGS__})
 F_WUNUSED F_NONNULL
-bool ltree_add_rec_a(const zone_t* zone, const uint8_t* dname, uint32_t addr, unsigned ttl, const bool ooz);
+bool ltree_add_rec_a(const zone_t* zone, const uint8_t* dname, uint32_t addr, unsigned ttl);
 F_WUNUSED F_NONNULL
-bool ltree_add_rec_aaaa(const zone_t* zone, const uint8_t* dname, const uint8_t* addr, unsigned ttl, const bool ooz);
+bool ltree_add_rec_aaaa(const zone_t* zone, const uint8_t* dname, const uint8_t* addr, unsigned ttl);
 F_WUNUSED F_NONNULL
 bool ltree_add_rec_dynaddr(const zone_t* zone, const uint8_t* dname, const char* rhs, unsigned ttl, unsigned ttl_min);
 F_WUNUSED F_NONNULL
