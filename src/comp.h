@@ -1,4 +1,4 @@
-/* Copyright © 2012 Brandon L Black <blblack@gmail.com>
+/* Copyright © 2020 Brandon L Black <blblack@gmail.com>
  *
  * This file is part of gdnsd.
  *
@@ -17,18 +17,23 @@
  *
  */
 
-#ifndef GDNSD_ZSRC_RFC1035_H
-#define GDNSD_ZSRC_RFC1035_H
-
-#include "ltree.h"
+#ifndef GDNSD_COMP_H
+#define GDNSD_COMP_H
 
 #include <gdnsd/compiler.h>
 
-#include <stdbool.h>
+#include "ltree.h"
 
-void zsrc_rfc1035_init(void);
+#include <stddef.h>
+#include <inttypes.h>
 
 F_NONNULL
-bool zsrc_rfc1035_load_zones(ltree_node_t* new_root_tree);
+void comp_do_mx_cname_ptr(ltree_rrset_raw_t* rrset, const uint8_t* node_dname);
 
-#endif // GDNSD_ZSRC_RFC1035_H
+F_WUNUSED F_NONNULL
+bool comp_do_ns(ltree_rrset_raw_t* rrset, ltree_node_t* zroot, const uint8_t* node_dname, const bool in_deleg);
+
+F_NONNULL
+void comp_do_soa(ltree_rrset_raw_t* rrset, const uint8_t* node_dname);
+
+#endif // GDNSD_COMP_H

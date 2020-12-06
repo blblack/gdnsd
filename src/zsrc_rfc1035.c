@@ -78,7 +78,7 @@ typedef struct zf_list_t zf_list_t;
 struct zf_list_t {
     char* full_fn;   // worker input
     const char* fn;  // (aliases into above, needs no free)
-    zone_t* zone;    // worker output
+    ltree_node_t* zroot;    // worker output
     zf_list_t* next; // next in list
 };
 
@@ -87,7 +87,7 @@ static void zf_list_early_destroy(zf_list_t* zfl)
 {
     if (zfl->next)
         zf_list_early_destroy(zfl->next);
-    gdnsd_assert(!zfl->zone);
+    gdnsd_assert(!zfl->zroot);
     free(zfl->full_fn);
     free(zfl);
 }
@@ -148,12 +148,12 @@ static void* zones_worker(void* list_asvoid)
         char* name = make_zone_name(zfl->fn);
         if (!name)
             return (void*)1;
-        zone_t* z = ltree_new_zone(name);
+        ltree_node_t* zroot = ltree_new_zone(name);
         free(name);
-        if (!z)
+        if (!zroot)
             return (void*)1;
-        zfl->zone = z;
-        if (zscan_rfc1035(z, zfl->full_fn) || ltree_postproc_zone(z))
+        zfl->zroot = zroot;
+        if (zscan_rfc1035(zroot, zfl->full_fn) || ltree_postproc_zone(zroot))
             return (void*)1;
         zfl = zfl->next;
     }
@@ -162,7 +162,7 @@ static void* zones_worker(void* list_asvoid)
 }
 
 F_NONNULL
-static bool harvest_zone_worker(pthread_t threadid, zf_list_t* zfl, ltree_node_t* new_root_tree, ltarena_t* new_root_arena, bool failed)
+static bool harvest_zone_worker(pthread_t threadid, zf_list_t* zfl, ltree_node_t* new_root_tree, bool failed)
 {
     void* raw_exit_status = (void*)1;
     int pthread_err = pthread_join(threadid, &raw_exit_status);
@@ -174,12 +174,12 @@ static bool harvest_zone_worker(pthread_t threadid, zf_list_t* zfl, ltree_node_t
     do {
         free(zfl->full_fn);
         if (!failed) {
-            gdnsd_assume(zfl->zone);
-            failed = ltree_merge_zone(new_root_tree, new_root_arena, zfl->zone);
+            gdnsd_assume(zfl->zroot);
+            failed = ltree_merge_zone(new_root_tree, zfl->zroot);
         }
-        if (failed && zfl->zone)
-            ltree_destroy_zone(zfl->zone);
-        zfl->zone = NULL;
+        if (failed && zfl->zroot)
+            ltree_destroy(zfl->zroot);
+        zfl->zroot = NULL;
         zf_list_t* next = zfl->next;
         free(zfl);
         zfl = next;
@@ -195,7 +195,7 @@ static bool harvest_zone_worker(pthread_t threadid, zf_list_t* zfl, ltree_node_t
 // zf_threads_t/zf_list_t resources by the time it returns, even if things fail
 // partially or wholly.
 F_NONNULL
-static bool zf_threads_load_zones(zf_threads_t* zft, ltree_node_t* new_root_tree, ltarena_t* new_root_arena)
+static bool zf_threads_load_zones(zf_threads_t* zft, ltree_node_t* new_root_tree)
 {
     sigset_t sigmask_all;
     sigfillset(&sigmask_all);
@@ -223,7 +223,7 @@ static bool zf_threads_load_zones(zf_threads_t* zft, ltree_node_t* new_root_tree
 
     bool failed = false;
     for (unsigned i = 0; i < useful_threads; i++)
-        failed = harvest_zone_worker(zft->threadids[i], zft->lists[i], new_root_tree, new_root_arena, failed);
+        failed = harvest_zone_worker(zft->threadids[i], zft->lists[i], new_root_tree, failed);
 
     if (!failed)
         log_info("rfc1035: Loaded %u zonefiles from '%s'", zft->total_count, rfc1035_dir);
@@ -239,7 +239,7 @@ static bool zf_threads_load_zones(zf_threads_t* zft, ltree_node_t* new_root_tree
 /*** Public interfaces ***/
 /*************************/
 
-bool zsrc_rfc1035_load_zones(ltree_node_t* new_root_tree, ltarena_t* new_root_arena)
+bool zsrc_rfc1035_load_zones(ltree_node_t* new_root_tree)
 {
     gdnsd_assume(rfc1035_dir);
 
@@ -289,7 +289,7 @@ bool zsrc_rfc1035_load_zones(ltree_node_t* new_root_tree, ltarena_t* new_root_ar
     if (failed)
         zf_threads_early_destroy(zft);
     else
-        failed = zf_threads_load_zones(zft, new_root_tree, new_root_arena);
+        failed = zf_threads_load_zones(zft, new_root_tree);
 
     return failed;
 }

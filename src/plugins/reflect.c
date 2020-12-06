@@ -26,6 +26,7 @@
 #include "mon.h"
 #include "plugapi.h"
 #include "plugins.h"
+#include "dnswire.h"
 
 #include <string.h>
 #include <inttypes.h>
@@ -69,21 +70,31 @@ static int plugin_reflect_map_res(const char* resname, const uint8_t* zone_name)
     return -1;
 }
 
-static gdnsd_sttl_t plugin_reflect_resolve(unsigned resnum, const client_info_t* cinfo, dyn_result_t* result)
+static gdnsd_sttl_t plugin_reflect_resolve(unsigned resnum, const unsigned qtype, const client_info_t* cinfo, dyn_result_t* result)
 {
     gdnsd_assume(resnum < NUM_RTYPES);
+    gdnsd_assume(qtype == DNS_TYPE_A || qtype == DNS_TYPE_AAAA);
+
+    const unsigned qfam = (qtype == DNS_TYPE_A) ? AF_INET : AF_INET6;
 
     if (resnum == RESPONSE_BOTH || resnum == RESPONSE_DNS || (resnum == RESPONSE_BEST && !cinfo->edns_client_mask)) {
-        gdnsd_result_add_anysin(result, &cinfo->dns_source);
-        gdnsd_result_add_scope_mask(result, cinfo->edns_client_mask);
+        if (cinfo->dns_source.sa.sa_family == qfam) {
+            gdnsd_result_add_anysin(result, &cinfo->dns_source);
+            gdnsd_result_add_scope_mask(result, cinfo->edns_client_mask);
+        }
     }
 
     if (cinfo->edns_client_mask && resnum != RESPONSE_DNS) {
-        gdnsd_result_add_anysin(result, &cinfo->edns_client);
-        gdnsd_result_add_scope_mask(result, cinfo->edns_client_mask);
+        if (cinfo->edns_client.sa.sa_family == qfam) {
+            gdnsd_result_add_anysin(result, &cinfo->edns_client);
+            gdnsd_result_add_scope_mask(result, cinfo->edns_client_mask);
+        }
     } else if (!cinfo->edns_client_mask && resnum == RESPONSE_EDNS) {
         gdnsd_anysin_t tmpsin;
-        gdnsd_anysin_fromstr("0.0.0.0", 0, &tmpsin);
+        if (qfam == AF_INET)
+            gdnsd_anysin_fromstr("0.0.0.0", 0, &tmpsin);
+        else
+            gdnsd_anysin_fromstr("::", 0, &tmpsin);
         gdnsd_result_add_anysin(result, &tmpsin);
     }
 

@@ -317,8 +317,7 @@ static void make_resource(resource_t* res, const char* res_name, vscf_data_t* re
     config_res_dcmap(res, res_cfg, dcs_cfg, res_name);
 }
 
-F_NONNULL
-static gdnsd_sttl_t resolve_dc(const gdnsd_sttl_t* sttl_tbl, const dc_t* dc, const client_info_t* cinfo, dyn_result_t* result)
+static gdnsd_sttl_t resolve_dc(const gdnsd_sttl_t* sttl_tbl, const dc_t* dc, const client_info_t* cinfo, dyn_result_t* result, const unsigned qtype)
 {
     gdnsd_sttl_t rv;
 
@@ -328,7 +327,7 @@ static gdnsd_sttl_t resolve_dc(const gdnsd_sttl_t* sttl_tbl, const dc_t* dc, con
         rv = gdnsd_sttl_min(sttl_tbl, dc->indices, dc->num_svcs);
     } else {
         gdnsd_assume(dc->plugin && dc->plugin->resolve); // detected at map_res time
-        rv = dc->plugin->resolve(dc->res_num, cinfo, result);
+        rv = dc->plugin->resolve(dc->res_num, qtype, cinfo, result);
     }
 
 #if META_MAP_ADMIN == 1
@@ -492,7 +491,7 @@ static int CB_MAP(const char* resname, const uint8_t* zone_name)
     return rv;
 }
 
-static gdnsd_sttl_t CB_RES(unsigned resnum, const client_info_t* cinfo, dyn_result_t* result)
+static gdnsd_sttl_t CB_RES(unsigned resnum, const unsigned qtype, const client_info_t* cinfo, dyn_result_t* result)
 {
     // extract and clear any datacenter index from upper 8 bits
     //  (used for synthetic resname/dcname resources)
@@ -537,7 +536,7 @@ static gdnsd_sttl_t CB_RES(unsigned resnum, const client_info_t* cinfo, dyn_resu
             gdnsd_assume(dcnum <= res->num_dcs);
             gdnsd_result_wipe(result);
             gdnsd_result_reset_scope_mask(result);
-            gdnsd_sttl_t this_rv = resolve_dc(sttl_tbl, &res->dcs[dcnum], cinfo, result);
+            gdnsd_sttl_t this_rv = resolve_dc(sttl_tbl, &res->dcs[dcnum], cinfo, result, qtype);
             assert_valid_sttl(this_rv);
             rv = gdnsd_sttl_min2(rv, this_rv);
             if (!(this_rv & GDNSD_STTL_DOWN)) {
@@ -550,7 +549,7 @@ static gdnsd_sttl_t CB_RES(unsigned resnum, const client_info_t* cinfo, dyn_resu
         if (rv & GDNSD_STTL_DOWN) {
             gdnsd_result_wipe(result);
             gdnsd_result_reset_scope_mask(result);
-            resolve_dc(sttl_tbl, &res->dcs[first_dc_num], cinfo, result);
+            resolve_dc(sttl_tbl, &res->dcs[first_dc_num], cinfo, result, qtype);
         }
     }
 
