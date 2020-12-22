@@ -51,7 +51,6 @@
 #  define F_COLD          __attribute__((__cold__))
 #  define F_RETNN         __attribute__((__returns_nonnull__))
 #  define F_ALLOCAL(_x)   __attribute__((__alloc_align__((_x))))
-#  define S_FALLTHROUGH   __attribute__((__fallthrough__))
 #endif
 
 #define PRAG_(x) _Pragma(#x)
@@ -134,9 +133,6 @@
 #ifndef   F_ALLOCAL
 #  define F_ALLOCAL(_x)
 #endif
-#ifndef   S_FALLTHROUGH
-#  define S_FALLTHROUGH ((void)(0))
-#endif
 
 // Unaligned memory access stuff
 // "packed" is a GCC-ism which also seems to be supported
@@ -155,7 +151,6 @@ struct gdnsd_una64_ {
 } __attribute__((__packed__));
 #define gdnsd_get_una16(_p) (((const struct gdnsd_una16_*)(_p))->x)
 #define gdnsd_get_una32(_p) (((const struct gdnsd_una32_*)(_p))->x)
-#define gdnsd_get_una64(_p) (((const struct gdnsd_una64_*)(_p))->x)
 #define gdnsd_put_una16(_v, _p) (((struct gdnsd_una16_*)(_p))->x) = (_v)
 #define gdnsd_put_una32(_v, _p) (((struct gdnsd_una32_*)(_p))->x) = (_v)
 

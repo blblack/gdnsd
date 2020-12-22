@@ -23,7 +23,6 @@
 #include <gdnsd/alloc.h>
 #include <gdnsd/file.h>
 #include <gdnsd/misc.h>
-#include <gdnsd/mm3.h>
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -124,7 +123,7 @@ typedef struct {
 F_NONNULL F_PURE
 static unsigned key_hash(const char* k, unsigned klen, const unsigned hash_mask)
 {
-    return hash_mm3_u32((const uint8_t*)k, klen) & hash_mask;
+    return gdnsd_shorthash_u32((const uint8_t*)k, klen) & hash_mask;
 }
 
 F_WUNUSED
@@ -749,6 +748,7 @@ static void val_destroy(vscf_data_t* d)
 
 vscf_data_t* vscf_scan_buf(const size_t len, const char* buf, const char* source, bool source_is_fn)
 {
+    gdnsd_shorthash_init(); // idempotent
     (void)vscf_en_main; // silence unused var warning from generated code
 
     vscf_scnr_t* scnr = xcalloc(sizeof(*scnr));

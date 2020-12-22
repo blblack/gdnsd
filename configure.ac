@@ -43,11 +43,7 @@ AC_COMPILE_IFELSE(
 [CLANG=yes], [CLANG=no])
 AC_MSG_RESULT([$CLANG])
 
-# Various type widths
 AC_CHECK_SIZEOF(uintptr_t)
-AC_CHECK_SIZEOF(size_t)
-AC_CHECK_SIZEOF(unsigned long)
-AC_CHECK_SIZEOF(unsigned long long)
 
 # Some tooling we need in our makefiles
 AM_PROG_AR

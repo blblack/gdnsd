@@ -55,6 +55,13 @@ char* gdnsd_str_combine_n(const unsigned count, ...);
 F_NONNULL
 char* gdnsd_str_subst(const char* haystack, const char* needle, const size_t needle_len, const char* repl, const size_t repl_len);
 
+// This is just an interface wrapper over libsodium shorthash, with per-process
+// random keying, to be used for hashtables.
+void gdnsd_shorthash_init(void);
+F_NONNULL
+uintptr_t gdnsd_shorthash_up(const uint8_t* data, const size_t len);
+#define gdnsd_shorthash_u32(_d,_l) ((uint32_t)gdnsd_shorthash_up(_d,_l))
+
 // set thread name (via pthread_setname_np or similar)
 void gdnsd_thread_setname(const char* n);
 
