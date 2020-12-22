@@ -164,9 +164,12 @@ plugin_t* gdnsd_plugin_find(const char* pname)
 void gdnsd_plugins_configure_all(const unsigned num_threads)
 {
     for (unsigned i = 0; i < NUM_PLUGINS; i++) {
-        if (plugins[i]->used && plugins[i]->load_config && !plugins[i]->config_loaded) {
-            plugins[i]->load_config(NULL, num_threads);
-            plugins[i]->config_loaded = true;
+        if (plugins[i]->used) {
+            log_warn("Plugin '%s' is deprecated and will be removed in a future version", plugins[i]->name);
+            if (plugins[i]->load_config && !plugins[i]->config_loaded) {
+                plugins[i]->load_config(NULL, num_threads);
+                plugins[i]->config_loaded = true;
+            }
         }
     }
 }
