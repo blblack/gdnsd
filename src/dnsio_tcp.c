@@ -42,6 +42,7 @@
 #include <netinet/tcp.h>
 #include <sys/uio.h>
 #include <math.h>
+#include <stdalign.h>
 
 #include <ev.h>
 #include <urcu-qsbr.h>
@@ -63,10 +64,8 @@
 // assert about this below the definition of "struct conn".  This is just an
 // efficiency hack of course.
 #define TCP_READBUF 3840U
-#if __STDC_VERSION__ >= 201112L // C11
-_Static_assert(TCP_READBUF >= (DNS_RECV_SIZE + 2U), "TCP readbuf fits >= 1 maximal req");
-_Static_assert(TCP_READBUF >= sizeof(proxy_hdr_t), "TCP readbuf >= PROXY header");
-#endif
+static_assert(TCP_READBUF >= (DNS_RECV_SIZE + 2U), "TCP readbuf fits >= 1 maximal req");
+static_assert(TCP_READBUF >= sizeof(proxy_hdr_t), "TCP readbuf >= PROXY header");
 
 typedef union {
     // These two must be adjacent, as a single send() points at them as if
@@ -79,9 +78,7 @@ typedef union {
 } tcp_pkt_t;
 
 // Ensure no padding between pktbuf_size_hdr and pkt, above
-#if __STDC_VERSION__ >= 201112L // C11
-_Static_assert(_Alignof(pkt_t) <= _Alignof(uint16_t), "No padding for pkt");
-#endif
+static_assert(alignof(pkt_t) <= alignof(uint16_t), "No padding for pkt");
 
 typedef enum {
     TH_RUN = 0,   // normal runtime operation
@@ -140,9 +137,7 @@ struct conn {
 };
 
 // See above at definition of TCP_READBUF
-#if __STDC_VERSION__ >= 201112L // C11
-_Static_assert(sizeof(conn_t) <= 4096U, "TCP conn <= 4KB");
-#endif
+static_assert(sizeof(conn_t) <= 4096U, "TCP conn <= 4KB");
 
 static pthread_mutex_t registry_lock = PTHREAD_MUTEX_INITIALIZER;
 static thread_t** registry = NULL;
