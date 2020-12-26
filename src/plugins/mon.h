@@ -129,7 +129,7 @@ void gdnsd_mon_start(struct ev_loop* mon_loop);
 
 // JSON monitored-state output for control socket
 F_NONNULL F_RETNN
-char* gdnsd_mon_states_get_json(size_t* len);
+char* gdnsd_mon_states_get_json(unsigned* len);
 
 // State-fetching (one table call per resolve invocation, reused
 //   for as many index fetches as necc)

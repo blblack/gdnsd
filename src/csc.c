@@ -171,13 +171,13 @@ bool csc_server_version_gte(const csc_t* csc, const uint8_t major, const uint8_t
 }
 
 F_NONNULL
-static size_t get_control_fds(struct msghdr* msg, int* fds, const size_t fds_recvd, const size_t fds_wanted)
+static unsigned get_control_fds(struct msghdr* msg, int* fds, const unsigned fds_recvd, const unsigned fds_wanted)
 {
     if (msg->msg_controllen) {
         for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
             if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
-                const size_t dlen = cmsg->cmsg_len - CMSG_LEN(0);
-                const size_t nfds = dlen / sizeof(int);
+                const unsigned dlen = cmsg->cmsg_len - CMSG_LEN(0);
+                const unsigned nfds = dlen / sizeof(int);
                 if (!nfds || dlen % sizeof(int) || nfds + fds_recvd > fds_wanted)
                     log_fatal("REPLACE[new daemon]: takeover socket handoff failed: bad SCM_RIGHTS size/count");
                 memcpy(&fds[fds_recvd], CMSG_DATA(cmsg), dlen);
@@ -189,14 +189,14 @@ static size_t get_control_fds(struct msghdr* msg, int* fds, const size_t fds_rec
 }
 
 F_NONNULL
-size_t csc_txn_getfds(const csc_t* csc, const csbuf_t* req, csbuf_t* resp, int** resp_fds)
+unsigned csc_txn_getfds(const csc_t* csc, const csbuf_t* req, csbuf_t* resp, int** resp_fds)
 {
     ssize_t pktlen = send(csc->fd, req->raw, 8, 0);
     if (pktlen != 8)
         log_fatal("REPLACE[new daemon]: takeover socket handoff failed: 8 byte send() retval %zi: %s", pktlen, logf_errno());
 
-    size_t fds_wanted = 0; // don't know till first recvmsg
-    size_t fds_recvd = 0;
+    unsigned fds_wanted = 0; // don't know till first recvmsg
+    unsigned fds_recvd = 0;
     int* fds = NULL;
 
     do {
@@ -246,7 +246,7 @@ size_t csc_txn_getfds(const csc_t* csc, const csbuf_t* req, csbuf_t* resp, int**
                 log_fatal("REPLACE[new daemon]: takeover socket handoff failed: bad followup message");
         }
 
-        const size_t nfds = get_control_fds(&msg, fds, fds_recvd, fds_wanted);
+        const unsigned nfds = get_control_fds(&msg, fds, fds_recvd, fds_wanted);
         gdnsd_assume(nfds);
         fds_recvd += nfds;
     } while (fds_recvd < fds_wanted);
@@ -254,7 +254,7 @@ size_t csc_txn_getfds(const csc_t* csc, const csbuf_t* req, csbuf_t* resp, int**
     gdnsd_assume(fds_recvd == fds_wanted);
 
 #ifndef MSG_CMSG_CLOEXEC
-    for (size_t i = 0; i < fds_recvd; i++)
+    for (unsigned i = 0; i < fds_recvd; i++)
         if (fcntl(fds[i], F_SETFD, FD_CLOEXEC))
             log_fatal("REPLACE[new daemon]: takeover socket handoff failed: Cannot set FD_CLOEXEC on received sockets: %s", logf_errno());
 #endif
@@ -297,19 +297,19 @@ csc_txn_rv_t csc_txn_getdata(const csc_t* csc, const csbuf_t* req, csbuf_t* resp
     char* rd = NULL;
 
     if (resp->d) {
-        const size_t total = resp->d;
+        const unsigned total = resp->d;
         rd = xmalloc(total);
-        size_t done = 0;
+        unsigned done = 0;
 
         while (done < total) {
-            const size_t wanted = total - done;
+            const unsigned wanted = total - done;
             const ssize_t pktlen = recv(csc->fd, &rd[done], wanted, 0);
             if (pktlen <= 0) {
                 free(rd);
-                log_err("%zu-byte recv() failed: %s", wanted, logf_errno());
+                log_err("%u-byte recv() failed: %s", wanted, logf_errno());
                 return CSC_TXN_FAIL_HARD;
             }
-            done += (size_t)pktlen;
+            done += (unsigned)pktlen;
         }
     }
 
@@ -327,18 +327,18 @@ csc_txn_rv_t csc_txn_senddata(const csc_t* csc, const csbuf_t* req, csbuf_t* res
         return CSC_TXN_FAIL_SOFT;
     }
 
-    const size_t total = req->d;
-    size_t done = 0;
+    const unsigned total = req->d;
+    unsigned done = 0;
 
     while (done < total) {
-        const size_t wanted = total - done;
+        const unsigned wanted = total - done;
         const ssize_t sent = send(csc->fd, &req_data[done], wanted, 0);
         if (sent < 0) {
             free(req_data);
-            log_err("%zu-byte send() failed: %s", wanted, logf_errno());
+            log_err("%u-byte send() failed: %s", wanted, logf_errno());
             return CSC_TXN_FAIL_SOFT;
         }
-        done += (size_t)sent;
+        done += (unsigned)sent;
     }
 
     free(req_data);
@@ -377,7 +377,7 @@ csc_txn_rv_t csc_stop_server(const csc_t* csc)
     return csc_txn(csc, &req, &resp);
 }
 
-size_t csc_get_stats_handoff(const csc_t* csc, uint64_t** raw_u64)
+unsigned csc_get_stats_handoff(const csc_t* csc, uint64_t** raw_u64)
 {
     // During some release >= 3.1.0, we can remove 2.99.x-beta compat here by
     // assuming all daemons with listening control sockets have a major >= 3
@@ -407,20 +407,20 @@ size_t csc_get_stats_handoff(const csc_t* csc, uint64_t** raw_u64)
         return 0;
     }
 
-    const size_t total = handoff.d;
+    const unsigned total = handoff.d;
     void* raw_data = xmalloc(total);
     char* raw_char = raw_data;
-    size_t done = 0;
+    unsigned done = 0;
 
     while (done < total) {
-        const size_t wanted = total - done;
+        const unsigned wanted = total - done;
         pktlen = recv(csc->fd, &raw_char[done], wanted, 0);
         if (pktlen <= 0) {
             free(raw_data);
-            log_err("REPLACE[new daemon]: Stats handoff failed: %zu-byte recv() failed: %s", wanted, logf_errno());
+            log_err("REPLACE[new daemon]: Stats handoff failed: %u-byte recv() failed: %s", wanted, logf_errno());
             return 0;
         }
-        done += (size_t)pktlen;
+        done += (unsigned)pktlen;
     }
 
     *raw_u64 = (uint64_t*)raw_data;

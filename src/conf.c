@@ -112,7 +112,7 @@ static void set_nsid_ascii(cfg_t* cfg, const char* data)
     if (!dlen || dlen > 128U) {
         fail = true;
     } else {
-        for (size_t i = 0; i < dlen; i++)
+        for (unsigned i = 0; i < dlen; i++)
             if (data[i] < 0x20 || data[i] > 0x7E)
                 fail = true;
     }

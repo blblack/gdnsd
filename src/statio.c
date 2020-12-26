@@ -132,7 +132,7 @@ static stats_uint_t statio_base[SLOT_COUNT];
 // This is reset to statio_base and used to accumulate thread stats for output
 static stats_uint_t statio[SLOT_COUNT];
 
-static size_t json_buffer_max = 0;
+static unsigned json_buffer_max = 0;
 
 static void accumulate_statio(unsigned threadnum)
 {
@@ -198,27 +198,27 @@ static void populate_statio(void)
         accumulate_statio(i);
 }
 
-char* statio_get_json(time_t nowish, size_t* len)
+char* statio_get_json(time_t nowish, unsigned* len)
 {
     populate_statio();
     // fill json output buffer
     uint64_t uptime64 = (uint64_t)nowish - (uint64_t)start_time;
     char* buf = xmalloc(json_buffer_max);
     int snp_rv = snprintf(buf, json_buffer_max, json_fixed, uptime64, statio[DNS_NOERROR], statio[DNS_REFUSED], statio[DNS_NXDOMAIN], statio[DNS_NOTIMP], statio[DNS_BADVERS], statio[DNS_FORMERR], statio[DNS_DROPPED], statio[DNS_V6], statio[DNS_EDNS], statio[DNS_EDNS_CLIENTSUB], statio[DNS_EDNS_DO], statio[DNS_EDNS_COOKIE_ERR], statio[DNS_EDNS_COOKIE_OK], statio[DNS_EDNS_COOKIE_INIT], statio[DNS_EDNS_COOKIE_BAD], statio[UDP_REQS], statio[UDP_RECVFAIL], statio[UDP_SENDFAIL], statio[UDP_TC], statio[UDP_EDNS_BIG], statio[UDP_EDNS_TC], statio[TCP_REQS], statio[TCP_RECVFAIL], statio[TCP_SENDFAIL], statio[TCP_CONNS], statio[TCP_CLOSE_C], statio[TCP_CLOSE_S_OK], statio[TCP_CLOSE_S_ERR], statio[TCP_CLOSE_S_KILL], statio[TCP_PROXY], statio[TCP_PROXY_FAIL], statio[TCP_DSO_ESTAB], statio[TCP_DSO_PROTOERR], statio[TCP_DSO_TYPENI], statio[TCP_ACCEPTFAIL]);
-    gdnsd_assume(snp_rv > 0 && (size_t)snp_rv < json_buffer_max);
-    *len = (size_t)snp_rv;
+    gdnsd_assume(snp_rv > 0 && (unsigned)snp_rv < json_buffer_max);
+    *len = (unsigned)snp_rv;
     return buf;
 }
 
 // Serializes as a set of 8-byte uint64_t values, one for each stat slot,
 // followed by an extra one for the start_time value.
 // *dlen_p holds the raw size of the allocated, returned buffer in bytes.
-char* statio_serialize(size_t* dlen_p)
+char* statio_serialize(unsigned* dlen_p)
 {
     populate_statio();
-    const size_t count = SLOT_COUNT + 1U;
+    const unsigned count = SLOT_COUNT + 1U;
     uint64_t* data64 = xmalloc_n(count, sizeof(*data64));
-    for (size_t i = 0; i < SLOT_COUNT; i++)
+    for (unsigned i = 0; i < SLOT_COUNT; i++)
         data64[i] = (uint64_t)statio[i];
     data64[SLOT_COUNT] = (uint64_t)start_time;
     *dlen_p = count * sizeof(*data64);
@@ -233,14 +233,14 @@ char* statio_serialize(size_t* dlen_p)
 // to leave an unused hole in the sequence, future additions must go on the
 // end, and future significant meaning changes will require deleting a slot and
 // then adding a new one.
-void statio_deserialize(uint64_t* data, size_t dlen)
+void statio_deserialize(uint64_t* data, unsigned dlen)
 {
     if (!dlen || dlen & 4U) {
         log_err("stats deserialization failed: length must be a non-zero multiple of 8");
     } else {
-        size_t input_slot_count = (dlen >> 3) - 1U;
+        unsigned input_slot_count = (dlen >> 3) - 1U;
         start_time = (time_t)data[input_slot_count];
-        for (size_t i = 0; i < SLOT_COUNT && i < input_slot_count; i++)
+        for (unsigned i = 0; i < SLOT_COUNT && i < input_slot_count; i++)
             statio_base[i] = (stats_uint_t)data[i];
     }
 }

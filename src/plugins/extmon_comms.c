@@ -30,9 +30,9 @@
 #include <unistd.h>
 #include <string.h>
 
-bool emc_write_string(const int fd, const char* str, const size_t len)
+bool emc_write_string(const int fd, const char* str, const unsigned len)
 {
-    size_t written = 0;
+    unsigned written = 0;
     while (written < len) {
         ssize_t write_rv = write(fd, str + written, len - written);
         if (write_rv < 1) {
@@ -44,15 +44,15 @@ bool emc_write_string(const int fd, const char* str, const size_t len)
                 return true;
             }
         } else {
-            written += (size_t)write_rv;
+            written += (unsigned)write_rv;
         }
     }
     return false;
 }
 
-bool emc_read_nbytes(const int fd, const size_t len, uint8_t* out)
+bool emc_read_nbytes(const int fd, const unsigned len, uint8_t* out)
 {
-    size_t seen = 0;
+    unsigned seen = 0;
     while (seen < len) {
         ssize_t read_rv = read(fd, out + seen, len - seen);
         if (read_rv < 1) {
@@ -64,7 +64,7 @@ bool emc_read_nbytes(const int fd, const size_t len, uint8_t* out)
                 return true;
             }
         } else {
-            seen += (size_t)read_rv;
+            seen += (unsigned)read_rv;
         }
     }
     return false;

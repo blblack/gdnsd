@@ -119,7 +119,7 @@ typedef struct {
 struct cset_s_;
 typedef struct cset_s_ cset_t;
 struct cset_s_ {
-    size_t count;
+    unsigned count;
     ev_tstamp expiry;
     cset_t* next_newer;
     chal_t chals[];
@@ -145,7 +145,7 @@ static ev_timer expire_timer;
 // commonly, and have to return the whole set of duplicates, so open addressing
 // isn't a great idea either.
 typedef struct {
-    size_t count;
+    unsigned count;
     const chal_t* chals[];
 } chal_collide_t;
 
@@ -164,7 +164,7 @@ GRCU_STATIC(chal_tbl_t*, chal_tbl, NULL);
 F_NONNULL
 static void chal_tbl_destruct(chal_tbl_t* destructme)
 {
-    for (size_t i = 0; i <= destructme->mask; i++)
+    for (unsigned i = 0; i <= destructme->mask; i++)
         if (destructme->tbl[i])
             free(destructme->tbl[i]);
     free(destructme);
@@ -175,10 +175,10 @@ static void chal_tbl_destruct(chal_tbl_t* destructme)
 F_NONNULL
 static bool chal_tbl_hash_cset(chal_tbl_t* ctbl, const cset_t* cset, const bool check)
 {
-    for (size_t i = 0; i < cset->count; i++) {
+    for (unsigned i = 0; i < cset->count; i++) {
         const chal_t* ch = &cset->chals[i];
         chal_collide_t** slotptr = &ctbl->tbl[ch->dnhash & ctbl->mask];
-        size_t old_ct = 0;
+        unsigned old_ct = 0;
         if (*slotptr) {
             old_ct = (*slotptr)->count;
             if (check && old_ct > CHAL_COLLIDE_SANITY_MAX)
@@ -301,7 +301,7 @@ void cset_flush(struct ev_loop* loop)
 // construct a whole TXT RR encoding the payload
 static void mk_chal_rr(uint8_t* out, const uint8_t* payload)
 {
-    size_t idx = 0;
+    unsigned idx = 0;
     gdnsd_put_una32(DNS_RRFIXED_TXT, &out[idx]);
     idx += 4;
     gdnsd_put_una32(htonl(gcfg->acme_challenge_dns_ttl), &out[idx]);
@@ -313,7 +313,7 @@ static void mk_chal_rr(uint8_t* out, const uint8_t* payload)
     gdnsd_assert((idx + 43U) == CHAL_RR_LEN);
 }
 
-bool cset_create(struct ev_loop* loop, size_t ttl_remain, size_t count, size_t dlen, uint8_t* data)
+bool cset_create(struct ev_loop* loop, unsigned ttl_remain, unsigned count, unsigned dlen, uint8_t* data)
 {
     if (!count || !dlen || count > CHAL_MAX_COUNT || dlen > CHAL_MAX_DLEN) {
         log_err("Control socket sent illegal ACME dns-01 challenge data");
@@ -327,10 +327,10 @@ bool cset_create(struct ev_loop* loop, size_t ttl_remain, size_t count, size_t d
     cset->expiry = ev_now(loop) + ttl_remain;
     cset->next_newer = NULL;
 
-    log_debug("Attempting to create ACME DNS-01 challenge set with %zu items:", count);
+    log_debug("Attempting to create ACME DNS-01 challenge set with %u items:", count);
 
-    size_t didx = 0;
-    for (size_t i = 0; i < count; i++) {
+    unsigned didx = 0;
+    for (unsigned i = 0; i < count; i++) {
         gdnsd_assume(didx <= dlen);
         if (dname_status_buflen(&data[didx], (dlen - didx)) == DNAME_INVALID) {
             log_err("Control socket sent invalid domainname in acme-dns-01 request");
@@ -391,7 +391,7 @@ bool cset_create(struct ev_loop* loop, size_t ttl_remain, size_t count, size_t d
 
 // Serialize a cset_t back into controlsock wire format
 F_NONNULL F_WUNUSED
-static size_t cset_serialize(ev_tstamp now, const cset_t* cset, uint8_t* dptr)
+static unsigned cset_serialize(ev_tstamp now, const cset_t* cset, uint8_t* dptr)
 {
     gdnsd_assume(cset->count <= CHAL_MAX_COUNT);
     gdnsd_assume(cset->count);
@@ -405,11 +405,11 @@ static size_t cset_serialize(ev_tstamp now, const cset_t* cset, uint8_t* dptr)
     else
         ttl_remain = (uint16_t)remain_raw;
 
-    size_t offset = 2U; // save room for placing size at start
+    unsigned offset = 2U; // save room for placing size at start
     gdnsd_put_una16(ttl_remain, &dptr[offset]);
     offset += 2U;
     dptr[offset++] = (uint8_t)cset->count;
-    for (size_t i = 0; i < cset->count; i++) {
+    for (unsigned i = 0; i < cset->count; i++) {
         const chal_t* c = &cset->chals[i];
         gdnsd_assert(dname_status(c->dname) == DNAME_VALID);
         dname_copy(&dptr[offset], c->dname);
@@ -422,19 +422,19 @@ static size_t cset_serialize(ev_tstamp now, const cset_t* cset, uint8_t* dptr)
     gdnsd_assume(offset > 5U);
     gdnsd_assume(offset <= CHAL_MAX_SERIAL);
 
-    const size_t dlen = offset - 5U;
+    const unsigned dlen = offset - 5U;
     gdnsd_assume(dlen <= UINT16_MAX);
     gdnsd_put_una16(dlen, dptr);
 
     return offset;
 }
 
-uint8_t* csets_serialize(struct ev_loop* loop, size_t* csets_count_p, size_t* csets_dlen_p)
+uint8_t* csets_serialize(struct ev_loop* loop, unsigned* csets_count_p, unsigned* csets_dlen_p)
 {
     uint8_t* rv = NULL;
-    size_t allocated = 0;
-    size_t used = 0;
-    size_t ct = 0;
+    unsigned allocated = 0;
+    unsigned used = 0;
+    unsigned ct = 0;
     ev_tstamp now = ev_now(loop);
 
     const cset_t* cur = oldest;

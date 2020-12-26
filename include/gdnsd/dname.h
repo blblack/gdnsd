@@ -207,7 +207,7 @@ gdnsd_dname_status_t gdnsd_dname_status(const uint8_t* dname);
 // non-NULL pointer, but a buflen of zero is legal (which will always return
 // DNAME_INVALID).
 F_NONNULL F_PURE F_UNUSED
-static gdnsd_dname_status_t gdnsd_dname_status_buflen(const uint8_t* dname, size_t buflen)
+static gdnsd_dname_status_t gdnsd_dname_status_buflen(const uint8_t* dname, unsigned buflen)
 {
     if (!buflen || ((*dname) + 1U) > buflen)
         return DNAME_INVALID;
@@ -264,7 +264,7 @@ static void gdnsd_dname_copy(uint8_t* dest, const uint8_t* source)
 F_MALLOC F_NONNULL F_UNUSED F_RETNN
 static uint8_t* gdnsd_dname_dup(const uint8_t* dname)
 {
-    const size_t sz = *dname + 1U;
+    const unsigned sz = *dname + 1U;
     uint8_t* out = xmalloc(sz);
     memcpy(out, dname, sz);
     return out;

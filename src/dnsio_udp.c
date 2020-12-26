@@ -322,7 +322,7 @@ static void process_msg(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* stats
     if (sa->sa.sa_family == AF_INET6)
         ipv6_pktinfo_ifindex_fixup(msg_hdr);
 
-    size_t buf_in_len = (size_t)recvmsg_rv;
+    unsigned buf_in_len = (unsigned)recvmsg_rv;
     sa->len = msg_hdr->msg_namelen;
     struct iovec* iov = msg_hdr->msg_iov;
     iov->iov_len = process_dns_query(pctx, sa, iov->iov_base, NULL, buf_in_len);

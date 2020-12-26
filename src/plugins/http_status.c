@@ -234,7 +234,7 @@ static void mon_write_cb(struct ev_loop* loop, struct ev_io* io, const int reven
         return;
     }
 
-    const size_t sent = (size_t)send_rv;
+    const unsigned sent = (unsigned)send_rv;
     gdnsd_assume(sent <= to_send);
 
     if (unlikely(sent != to_send)) {

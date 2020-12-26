@@ -406,7 +406,7 @@ void ltree_init(void);
 F_UNUSED F_PURE F_WUNUSED F_NONNULL F_HOT
 static uintptr_t ltree_hash(const uint8_t* input)
 {
-    const size_t len = *input++;
+    const unsigned len = *input++;
     return gdnsd_shorthash_up(input, len);
 }
 

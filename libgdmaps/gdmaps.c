@@ -581,7 +581,7 @@ const char* gdmaps_logf_dclist(const gdmaps_t* gdmaps, const unsigned gdmap_idx,
         const char* dcname = gdmaps_dcnum2name(gdmaps, gdmap_idx, dcnum);
         if (!dcname)
             dcname = dclist_nodc;
-        const size_t len = strlen(dcname);
+        const unsigned len = strlen(dcname);
         memcpy(bptr, dcname, len);
         bptr += len;
     }

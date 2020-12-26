@@ -215,9 +215,9 @@ static void send_cmd(const unsigned idx, const mon_t* mon)
 {
     char** this_args = xmalloc_n(mon->svc->num_args, sizeof(*this_args));
 
-    const size_t thing_len = strlen(mon->thing);
+    const unsigned thing_len = strlen(mon->thing);
     for (unsigned i = 0; i < mon->svc->num_args; i++)
-        this_args[i] = gdnsd_str_subst(mon->svc->args[i], "%%ITEM%%", 8LU, mon->thing, thing_len);
+        this_args[i] = gdnsd_str_subst(mon->svc->args[i], "%%ITEM%%", 8U, mon->thing, thing_len);
 
     extmon_cmd_t this_cmd = {
         .idx = idx,

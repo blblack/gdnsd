@@ -98,7 +98,7 @@ typedef struct {
     conn_t** churn; // save conn_t allocations from previously-closed conns
     tcp_pkt_t* tpkt;
     double server_timeout;
-    size_t max_clients;
+    unsigned max_clients;
     unsigned churn_alloc;
     bool do_proxy;
     bool tcp_pad;
@@ -110,8 +110,8 @@ typedef struct {
     ev_timer timeout_watcher;
     conn_t* connq_head; // doubly-linked-list, most-idle at head
     conn_t* connq_tail; // last element, least-idle
-    size_t num_conns; // count of all conns, also len of connq list
-    size_t check_mode_conns; // conns using check_watcher at present
+    unsigned num_conns; // count of all conns, also len of connq list
+    unsigned check_mode_conns; // conns using check_watcher at present
     unsigned churn_count; // number of conn_t cached in "churn"
     thr_state_t st;
     bool grcu_is_online;
@@ -128,8 +128,8 @@ struct conn {
     gdnsd_anysin_t sa;
     bool need_proxy_init;
     dso_state_t dso; // shared w/ dnspacket layer
-    size_t readbuf_head;
-    size_t readbuf_bytes;
+    unsigned readbuf_head;
+    unsigned readbuf_bytes;
     union {
         proxy_hdr_t proxy_hdr;
         uint8_t readbuf[TCP_READBUF];
@@ -141,10 +141,10 @@ static_assert(sizeof(conn_t) <= 4096U, "TCP conn <= 4KB");
 
 static pthread_mutex_t registry_lock = PTHREAD_MUTEX_INITIALIZER;
 static thread_t** registry = NULL;
-static size_t registry_size = 0;
-static size_t registry_init = 0;
+static unsigned registry_size = 0;
+static unsigned registry_init = 0;
 
-void dnsio_tcp_init(size_t num_threads)
+void dnsio_tcp_init(unsigned num_threads)
 {
     registry_size = num_threads;
     registry = xcalloc_n(registry_size, sizeof(*registry));
@@ -154,7 +154,7 @@ void dnsio_tcp_request_threads_stop(void)
 {
     pthread_mutex_lock(&registry_lock);
     gdnsd_assume(registry_size == registry_init);
-    for (size_t i = 0; i < registry_init; i++) {
+    for (unsigned i = 0; i < registry_init; i++) {
         thread_t* thr = registry[i];
         if (thr) {
             ev_async* stop_watcher = &thr->stop_watcher;
@@ -202,7 +202,7 @@ static void connq_assert_sane(const thread_t* thr)
         gdnsd_assert(!thr->connq_head->prev);
         gdnsd_assert(!thr->connq_tail->next);
 #ifndef NDEBUG
-        size_t ct = 0;
+        unsigned ct = 0;
         conn_t* c = thr->connq_head;
         while (c) {
             ct++;
@@ -389,12 +389,12 @@ static void connq_refresh_conn(thread_t* thr, conn_t* conn)
 // Expects response data to already be in conn->pktbuf, of size resp_size.
 // Used for writing normal responses, and also for DSO unidirectionals
 F_NONNULL
-static bool conn_write_packet(thread_t* thr, conn_t* conn, size_t resp_size)
+static bool conn_write_packet(thread_t* thr, conn_t* conn, unsigned resp_size)
 {
     gdnsd_assume(resp_size);
     tcp_pkt_t* tpkt = thr->tpkt;
     tpkt->pktbuf_size_hdr = htons((uint16_t)resp_size);
-    const size_t resp_send_size = resp_size + 2U;
+    const unsigned resp_send_size = resp_size + 2U;
     const ev_io* readw = &conn->read_watcher;
     const ssize_t send_rv = send(readw->fd, tpkt->pktbuf_raw, resp_send_size, 0);
     if (unlikely(send_rv < (ssize_t)resp_send_size)) {
@@ -421,7 +421,7 @@ static void conn_send_dso_uni(thread_t* thr, conn_t* conn, const bool rd)
     // For DSO uni, the 12 byte header is all zero except the opcode
     memset(buf, 0, 12U);
     buf[2] = DNS_OPCODE_DSO << 3;
-    size_t offset = 12;
+    unsigned offset = 12;
 
     // The basic 4 byte TLV header
     const uint16_t tlv_type = rd ? DNS_DSO_RETRY_DELAY : DNS_DSO_KEEPALIVE;
@@ -474,7 +474,7 @@ static void timeout_handler(struct ev_loop* loop V_UNUSED, ev_timer* t, const in
 
     // End of the 5s final shutdown phase: immediately close all connections and let the thread exit
     if (unlikely(thr->st == TH_SHUT)) {
-        log_debug("TCP DNS thread shutdown: immediately dropping (RST) %zu delinquent connections while exiting", thr->num_conns);
+        log_debug("TCP DNS thread shutdown: immediately dropping (RST) %u delinquent connections while exiting", thr->num_conns);
         while (conn) {
             conn_t* next_conn = conn->next;
             connq_destruct_conn(thr, conn, true, false); // no queue mgmt
@@ -492,7 +492,7 @@ static void timeout_handler(struct ev_loop* loop V_UNUSED, ev_timer* t, const in
 
     // End of the 5s graceful phase (start 5s shutdown phase)
     if (unlikely(thr->st == TH_GRACE)) {
-        log_debug("TCP DNS thread shutdown: demanding clients to close %zu remaining conns immediately and waiting up to 5s", thr->num_conns);
+        log_debug("TCP DNS thread shutdown: demanding clients to close %u remaining conns immediately and waiting up to 5s", thr->num_conns);
         thr->st = TH_SHUT;
         while (conn) {
             conn_t* next_conn = conn->next;
@@ -581,7 +581,7 @@ static void stop_handler(struct ev_loop* loop, ev_async* w, int revents V_UNUSED
         return;
     }
 
-    log_debug("TCP DNS thread shutdown: gracefully requesting clients to close %zu remaining conns when able and waiting up to 5s", thr->num_conns);
+    log_debug("TCP DNS thread shutdown: gracefully requesting clients to close %u remaining conns when able and waiting up to 5s", thr->num_conns);
 
     // Switch thread state to the initial graceful shutdown phase
     thr->st = TH_GRACE;
@@ -623,7 +623,7 @@ static void stop_handler(struct ev_loop* loop, ev_async* w, int revents V_UNUSED
 // sanitizing actions along the way.
 // TLDR: -1 == killed conn, 0 == need more read, 1+ == size of full req avail
 F_NONNULL
-static ssize_t conn_check_next_req(thread_t* thr, conn_t* conn)
+static int conn_check_next_req(thread_t* thr, conn_t* conn)
 {
     // No bytes, just ensure head is reset to zero and ask for more reading
     if (!conn->readbuf_bytes) {
@@ -633,7 +633,7 @@ static ssize_t conn_check_next_req(thread_t* thr, conn_t* conn)
 
     // If even 1 byte is available, we can already pre-check for egregious
     // oversize, but we need two bytes for full sanity.
-    size_t req_size = conn->readbuf[conn->readbuf_head];
+    unsigned req_size = conn->readbuf[conn->readbuf_head];
     req_size <<= 8;
     bool undersized = false;
     if (conn->readbuf_bytes > 1) {
@@ -659,7 +659,7 @@ static ssize_t conn_check_next_req(thread_t* thr, conn_t* conn)
         return 0;
     }
 
-    return (ssize_t)req_size;
+    return (int)req_size;
 }
 
 // Assumes a full request packet (starting with the 12 byte DNS header) is
@@ -669,14 +669,14 @@ static ssize_t conn_check_next_req(thread_t* thr, conn_t* conn)
 // max).  Will copy out the request, process it, write a response, and then
 // manage the read buffer state and the check/read watcher states.
 F_NONNULL
-static void conn_respond(thread_t* thr, conn_t* conn, const size_t req_size)
+static void conn_respond(thread_t* thr, conn_t* conn, const unsigned req_size)
 {
     gdnsd_assume(req_size >= 12U && req_size <= DNS_RECV_SIZE);
     tcp_pkt_t* tpkt = thr->tpkt;
 
     // Move 1 full request from readbuf to pkt, advancing head and decrementing bytes
     memcpy(tpkt->pkt.raw, &conn->readbuf[conn->readbuf_head + 2U], req_size);
-    const size_t req_bufsize = req_size + 2U;
+    const unsigned req_bufsize = req_size + 2U;
     conn->readbuf_head += req_bufsize;
     conn->readbuf_bytes -= req_bufsize;
 
@@ -689,7 +689,7 @@ static void conn_respond(thread_t* thr, conn_t* conn, const size_t req_size)
     }
 
     conn->dso.last_was_ka = false;
-    size_t resp_size = process_dns_query(thr->pctx, &conn->sa, &tpkt->pkt, &conn->dso, req_size);
+    unsigned resp_size = process_dns_query(thr->pctx, &conn->sa, &tpkt->pkt, &conn->dso, req_size);
     if (!resp_size) {
         log_debug("TCP DNS conn from %s reset by server: dropped invalid query", logf_anysin(&conn->sa));
         stats_own_inc(&thr->stats->tcp.close_s_err);
@@ -716,7 +716,7 @@ static void conn_respond(thread_t* thr, conn_t* conn, const size_t req_size)
         connq_refresh_conn(thr, conn);
 
     // Check status of next readbuf req, decide which watcher should be active
-    const ssize_t ccnr_rv = conn_check_next_req(thr, conn);
+    const int ccnr_rv = conn_check_next_req(thr, conn);
     if (ccnr_rv < 0) // ccnr closed the conn for illegal next req size
         return;
     if (!ccnr_rv) { // No full req available, need to hit the read_handler next
@@ -754,7 +754,7 @@ static void check_handler(struct ev_loop* loop V_UNUSED, ev_check* w, const int 
 
     // We only arrive here if we have a legit-sized fully-buffered request
     gdnsd_assume(conn->readbuf_bytes > 2U);
-    const size_t req_size = (((size_t)conn->readbuf[conn->readbuf_head + 0] << 8U) + (size_t)conn->readbuf[conn->readbuf_head + 1]);
+    const unsigned req_size = ntohs(gdnsd_get_una16(&conn->readbuf[conn->readbuf_head]));
     gdnsd_assume(req_size >= 12U && req_size <= DNS_RECV_SIZE);
     gdnsd_assume(conn->readbuf_bytes >= (req_size + 2U));
     conn_respond(thr, conn, req_size);
@@ -769,7 +769,7 @@ F_NONNULL
 static bool conn_do_recv(thread_t* thr, conn_t* conn)
 {
     gdnsd_assume(conn->readbuf_bytes < sizeof(conn->readbuf));
-    const size_t wanted = sizeof(conn->readbuf) - conn->readbuf_bytes;
+    const unsigned wanted = sizeof(conn->readbuf) - conn->readbuf_bytes;
     const ssize_t recvrv = recv(conn->read_watcher.fd, &conn->readbuf[conn->readbuf_bytes], wanted, 0);
 
     if (recvrv == 0) { // (EOF)
@@ -805,7 +805,7 @@ static bool conn_do_recv(thread_t* thr, conn_t* conn)
         return true;
     }
 
-    size_t pktlen = (size_t)recvrv;
+    unsigned pktlen = (unsigned)recvrv;
     gdnsd_assume(pktlen <= wanted);
     gdnsd_assume((conn->readbuf_bytes + pktlen) <= sizeof(conn->readbuf));
     conn->readbuf_bytes += pktlen;
@@ -833,7 +833,7 @@ static void read_handler(struct ev_loop* loop V_UNUSED, ev_io* w, const int reve
 
     if (conn->need_proxy_init) {
         conn->need_proxy_init = false;
-        const size_t consumed = proxy_parse(&conn->sa, &conn->proxy_hdr, conn->readbuf_bytes);
+        const unsigned consumed = proxy_parse(&conn->sa, &conn->proxy_hdr, conn->readbuf_bytes);
         gdnsd_assume(consumed <= conn->readbuf_bytes);
         if (!consumed) {
             log_neterr("PROXY parse fail from %s, resetting connection", logf_anysin(&conn->sa));
@@ -846,10 +846,10 @@ static void read_handler(struct ev_loop* loop V_UNUSED, ev_io* w, const int reve
         conn->readbuf_head += consumed;
     }
 
-    const ssize_t ccnr_rv = conn_check_next_req(thr, conn);
+    const int ccnr_rv = conn_check_next_req(thr, conn);
     if (ccnr_rv < 1) // ccnr either closed on err or wants us to read more
         return;
-    conn_respond(thr, conn, (size_t)ccnr_rv);
+    conn_respond(thr, conn, (unsigned)ccnr_rv);
 }
 
 F_NONNULL

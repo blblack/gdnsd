@@ -141,7 +141,7 @@ void gdnsd_logger(int level, const char* fmt, ...);
 //  log_warn("The integer had value %s!", my_int_formatter(someint));
 //
 F_RETNN F_COLD
-char* gdnsd_fmtbuf_alloc(const size_t size);
+char* gdnsd_fmtbuf_alloc(const unsigned size);
 
 // Reset (free allocations within) the format buffer.  Do not use this
 //  with the normal log functions.  If you use the fmtbuf-based formatters

@@ -80,15 +80,15 @@ struct css_conn_s_ {
     ev_io w_read;
     ev_io w_write;
     int fd;
-    size_t size;
-    size_t size_done;
+    unsigned size;
+    unsigned size_done;
     css_cstate_t state;
     ctl_addr_t* ctl_addr; // if TCP, points at perms
 };
 
 typedef struct {
     css_conn_t** q;
-    size_t len;
+    unsigned len;
 } conn_queue_t;
 
 static void conn_queue_add(conn_queue_t* queue, css_conn_t* c)
@@ -129,7 +129,7 @@ struct css_s_ {
     css_conn_t* replace_conn_ctl;
     css_conn_t* replace_conn_dmn;
     int* handoff_fds;
-    size_t handoff_fds_count;
+    unsigned handoff_fds_count;
     pid_t replacement_pid;
 };
 
@@ -208,17 +208,17 @@ static void css_conn_write_data(css_conn_t* c)
     gdnsd_assume(c->data);
     gdnsd_assume(c->size);
     gdnsd_assume(c->size > c->size_done);
-    const size_t wanted = c->size - c->size_done;
+    const unsigned wanted = c->size - c->size_done;
     const ssize_t pktlen = send(c->fd, &c->data[c->size_done], wanted, MSG_DONTWAIT);
     if (pktlen < 0) {
         if (ERRNO_WOULDBLOCK)
             return;
-        log_err("control socket write of %zu bytes failed with retval %zi, closing: %s", wanted, pktlen, logf_errno());
+        log_err("control socket write of %u bytes failed with retval %zi, closing: %s", wanted, pktlen, logf_errno());
         css_conn_cleanup(c);
         return;
     }
 
-    c->size_done += (size_t)pktlen;
+    c->size_done += (unsigned)pktlen;
     if (c->size_done == c->size) {
         free(c->data);
         c->data = NULL;
@@ -247,13 +247,13 @@ static bool css_conn_write_resp(css_conn_t* c)
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    size_t send_fd_count = SCM_MAX_FDS;
+    unsigned send_fd_count = SCM_MAX_FDS;
     if (c->state == WRITING_RESP_FDS) {
         gdnsd_assume(c->size > c->size_done);
-        const size_t fd_todo = c->size - c->size_done;
+        const unsigned fd_todo = c->size - c->size_done;
         if (fd_todo < SCM_MAX_FDS)
             send_fd_count = fd_todo;
-        const size_t send_fd_len = sizeof(int) * send_fd_count;
+        const unsigned send_fd_len = sizeof(int) * send_fd_count;
         memset(u.cmsg_buf, 0, sizeof(u.cmsg_buf));
         msg.msg_control = u.cmsg_buf;
         msg.msg_controllen = CMSG_LEN(send_fd_len);
@@ -344,10 +344,10 @@ static void respond(css_conn_t* c, const char key, const uint32_t v, const uint3
 F_NONNULL
 static void respond_tak2(struct ev_loop* loop, css_conn_t* c)
 {
-    size_t csets_count = 0;
-    size_t csets_size = 0;
+    unsigned csets_count = 0;
+    unsigned csets_size = 0;
     uint8_t* csets_data = csets_serialize(loop, &csets_count, &csets_size);
-    respond(c, RESP_ACK, (uint32_t)csets_count, (uint32_t)csets_size, (char*)csets_data, false);
+    respond(c, RESP_ACK, csets_count, csets_size, (char*)csets_data, false);
 }
 
 bool css_stop_ok(const css_t* css)
@@ -495,11 +495,11 @@ static pid_t spawn_replacement(const char* argv0)
 // thread already running), so they'll retry against the new daemon.
 static void latr_all_reloaders(css_t* css)
 {
-    for (size_t i = 0; i < css->reload_zones_active.len; i++) {
+    for (unsigned i = 0; i < css->reload_zones_active.len; i++) {
         log_info("REPLACE[old daemon]: Deferring reload-zones request while replace in progress");
         respond(css->reload_zones_active.q[i], RESP_LATR, 0, 0, NULL, false);
     }
-    for (size_t i = 0; i < css->reload_zones_queued.len; i++) {
+    for (unsigned i = 0; i < css->reload_zones_queued.len; i++) {
         log_info("REPLACE[old daemon]: Deferring reload-zones request while replace in progress");
         respond(css->reload_zones_queued.q[i], RESP_LATR, 0, 0, NULL, false);
     }
@@ -513,20 +513,20 @@ static void recv_challenge_data(struct ev_loop* loop, ev_io* w, css_conn_t* c, c
     gdnsd_assume(c->data);
     gdnsd_assume(c->size);
     gdnsd_assume(c->size > c->size_done);
-    size_t wanted = c->size - c->size_done;
+    unsigned wanted = c->size - c->size_done;
     ssize_t pktlen = recv(c->fd, &c->data[c->size_done], wanted, MSG_DONTWAIT);
     if (pktlen <= 0) {
         if (pktlen < 0 && ERRNO_WOULDBLOCK)
             return;
         if (pktlen == 0)
-            log_err("control socket client disconnected when we expected %zu more bytes from it", wanted);
+            log_err("control socket client disconnected when we expected %u more bytes from it", wanted);
         else
-            log_err("control socket read of %zu data bytes failed with retval %zi, closing: %s", wanted, pktlen, logf_errno());
+            log_err("control socket read of %u data bytes failed with retval %zi, closing: %s", wanted, pktlen, logf_errno());
         css_conn_cleanup(c);
         return;
     }
 
-    c->size_done += (size_t)pktlen;
+    c->size_done += (unsigned)pktlen;
 
     if (c->size_done == c->size) {
         ev_io_stop(loop, w);
@@ -684,8 +684,8 @@ static void handle_req_take(css_conn_t* c, css_t* css)
         return;
     }
     gdnsd_assume(css->handoff_fds_count >= 2LU);
-    const size_t dns_fds_send = css->handoff_fds_count - 2LU;
-    log_info("REPLACE[old daemon]: Accepting takeover request from replacement PID %li, sending %zu DNS sockets", (long)take_pid, dns_fds_send);
+    const unsigned dns_fds_send = css->handoff_fds_count - 2LU;
+    log_info("REPLACE[old daemon]: Accepting takeover request from replacement PID %li, sending %u DNS sockets", (long)take_pid, dns_fds_send);
     ev_io* w_accept = &css->w_accept;
     ev_io_stop(css->loop, w_accept); // there can be only one
     for (unsigned i = 0; i < css->socks_cfg->num_ctl_addrs; i++) {
@@ -774,8 +774,8 @@ static void css_conn_read(struct ev_loop* loop, ev_io* w, int revents V_UNUSED)
     c->state = WAITING_SERVER;
 
     double nowish;
-    size_t stats_size;
-    size_t states_size;
+    unsigned stats_size;
+    unsigned states_size;
     char* stats_msg;
     char* states_msg;
 
@@ -938,9 +938,9 @@ static void socks_import_fd(const socks_cfg_t* socks_cfg, const int fd)
     close(fd);
 }
 
-static void socks_import_fds(const socks_cfg_t* socks_cfg, const int* fds, const size_t nfds)
+static void socks_import_fds(const socks_cfg_t* socks_cfg, const int* fds, const unsigned nfds)
 {
-    for (size_t i = 0; i < nfds; i++)
+    for (unsigned i = 0; i < nfds; i++)
         socks_import_fd(socks_cfg, fds[i]);
 }
 
@@ -1056,14 +1056,14 @@ css_t* css_new(const char* argv0, socks_cfg_t* socks_cfg, csc_t** csc_p)
         req.key = REQ_TAKE;
         req.d = (uint32_t)getpid();
         int* resp_fds = NULL;
-        const size_t fds_recvd = csc_txn_getfds(csc, &req, &resp, &resp_fds);
+        const unsigned fds_recvd = csc_txn_getfds(csc, &req, &resp, &resp_fds);
         gdnsd_assume(fds_recvd >= 2U);
         gdnsd_assert(sock_fd == -1);
         gdnsd_assert(lock_fd == -1);
         lock_fd = resp_fds[0];
         sock_fd = resp_fds[1];
-        const size_t dns_fd_count = fds_recvd - 2U;
-        log_info("REPLACE[new daemon]: Takeover request accepted, received %zu DNS sockets", dns_fd_count);
+        const unsigned dns_fd_count = fds_recvd - 2U;
+        log_info("REPLACE[new daemon]: Takeover request accepted, received %u DNS sockets", dns_fd_count);
         socks_import_fds(socks_cfg, &resp_fds[2], dns_fd_count);
         free(resp_fds);
     }
@@ -1122,7 +1122,7 @@ void css_start(css_t* css, struct ev_loop* loop)
 bool css_notify_zone_reloaders(css_t* css, const bool failed)
 {
     // Notify log and all waiting control sock clients of success/fail
-    for (size_t i = 0; i < css->reload_zones_active.len; i++)
+    for (unsigned i = 0; i < css->reload_zones_active.len; i++)
         respond(css->reload_zones_active.q[i], failed ? RESP_FAIL : RESP_ACK, 0, 0, NULL, false);
 
     // clear out the queue of clients waiting for reload status
@@ -1149,7 +1149,7 @@ void css_send_stats_handoff(const css_t* css)
         return;
 
     const css_conn_t* c = css->replace_conn_dmn;
-    size_t dlen = 0;
+    unsigned dlen = 0;
     char* data = statio_serialize(&dlen);
 
     csbuf_t handoff;
@@ -1164,16 +1164,16 @@ void css_send_stats_handoff(const css_t* css)
         return;
     }
 
-    size_t done = 0;
+    unsigned done = 0;
     while (done < dlen) {
-        const size_t wanted = dlen - done;
+        const unsigned wanted = dlen - done;
         const ssize_t sent = send(c->fd, &data[done], wanted, 0);
         if (sent < 0) {
-            log_err("REPLACE[old daemon]: Stats handoff failed: %zu-byte send() failed: %s", wanted, logf_errno());
+            log_err("REPLACE[old daemon]: Stats handoff failed: %u-byte send() failed: %s", wanted, logf_errno());
             free(data);
             return;
         }
-        done += (size_t)sent;
+        done += (unsigned)sent;
     }
 
     free(data);

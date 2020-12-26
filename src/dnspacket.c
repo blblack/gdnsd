@@ -891,7 +891,7 @@ static unsigned repeat_name(uint8_t* packet, unsigned store_at_offset, unsigned 
 }
 
 F_NONNULL
-static void shuffle_addrs_rdata(gdnsd_rstate32_t* rs, uint8_t* rrset_rdata, const size_t rr_count, size_t rr_len)
+static void shuffle_addrs_rdata(gdnsd_rstate32_t* rs, uint8_t* rrset_rdata, const unsigned rr_count, unsigned rr_len)
 {
     gdnsd_assume(rr_count); // non-zero rr_count is a given!
 
@@ -909,8 +909,8 @@ static void shuffle_addrs_rdata(gdnsd_rstate32_t* rs, uint8_t* rrset_rdata, cons
 
     // Fisher/Yates(/Durstenfeld/Knuth) shuffle of the fixed-length RRs within
     // the rdata chunk:
-    for (size_t i = rr_count - 1U; i > 0; i--) {
-        const size_t j = gdnsd_rand32_bounded(rs, i + 1U);
+    for (unsigned i = rr_count - 1U; i > 0; i--) {
+        const unsigned j = gdnsd_rand32_bounded(rs, i + 1U);
         // Logically there's little reason for the extra branch here, but
         // memcpy is undefined when given the same pointer as src and dst in
         // the middle copy below, so we may as well take the branch cost.
@@ -2018,7 +2018,7 @@ static unsigned do_edns_output(dnsp_ctx_t* ctx, uint8_t* packet, unsigned res_of
         // padding within MAX_RESPONSE_BUF at a block size of 468 as
         // documented in dnswire.h.
         gdnsd_assume(res_offset <= MAX_RESPONSE_DATA);
-        size_t pad_dlen = (((res_offset + 4U + PAD_BLOCK_SIZE - 1U) / PAD_BLOCK_SIZE) * PAD_BLOCK_SIZE) - 4U - res_offset;
+        unsigned pad_dlen = (((res_offset + 4U + PAD_BLOCK_SIZE - 1U) / PAD_BLOCK_SIZE) * PAD_BLOCK_SIZE) - 4U - res_offset;
         gdnsd_assume(res_offset + 4U + pad_dlen <= MAX_RESPONSE_BUF);
 
         rdlen += (4U + pad_dlen);
@@ -2046,7 +2046,7 @@ static unsigned do_edns_output(dnsp_ctx_t* ctx, uint8_t* packet, unsigned res_of
 }
 
 F_NONNULL
-static size_t handle_dso(const dnsp_ctx_t* ctx, const size_t packet_len)
+static unsigned handle_dso(const dnsp_ctx_t* ctx, const unsigned packet_len)
 {
     uint8_t* packet = ctx->txn.pkt->raw;
     gdnsd_assume(packet);
@@ -2093,7 +2093,7 @@ static size_t handle_dso(const dnsp_ctx_t* ctx, const size_t packet_len)
     }
 
     // Offset used to parse primary TLV
-    size_t offset = sizeof(wire_dns_header_t);
+    unsigned offset = sizeof(wire_dns_header_t);
 
     // Grab type primary request TLV
     const unsigned dtype = ntohs(gdnsd_get_una16(&packet[offset]));
@@ -2106,14 +2106,14 @@ static size_t handle_dso(const dnsp_ctx_t* ctx, const size_t packet_len)
     }
 
     // Grab data len of primary request TLV
-    const size_t dlen = ntohs(gdnsd_get_una16(&packet[offset]));
+    const unsigned dlen = ntohs(gdnsd_get_una16(&packet[offset]));
     offset += 2;
 
     // Consume and ignore primary TLV data bytes (dlen) and all additional TLVs
     // so long as there's still room in the packet for them
-    size_t atlv_offset = offset + dlen; // start of first atlv
+    unsigned atlv_offset = offset + dlen; // start of first atlv
     while (packet_len >= (atlv_offset + 4U)) { // while 1+ ATLVs present
-        const size_t adlen = ntohs(gdnsd_get_una16(&packet[atlv_offset + 2U]));
+        const unsigned adlen = ntohs(gdnsd_get_una16(&packet[atlv_offset + 2U]));
         atlv_offset += (4U + adlen);
     }
 
@@ -2125,7 +2125,7 @@ static size_t handle_dso(const dnsp_ctx_t* ctx, const size_t packet_len)
 
     if (dtype == DNS_DSO_KEEPALIVE) {
         if (dlen != 8) { // Protoerr E
-            log_devdebug("Got DSO KeepAlive Request with data len %zu, should be 8, Proto Err -> Conn Abort", dlen);
+            log_devdebug("Got DSO KeepAlive Request with data len %u, should be 8, Proto Err -> Conn Abort", dlen);
             stats_own_inc(&ctx->stats->tcp.dso_protoerr);
             return 0;
         }
@@ -2157,9 +2157,9 @@ static size_t handle_dso(const dnsp_ctx_t* ctx, const size_t packet_len)
 }
 
 F_NONNULL
-static size_t handle_dso_with_padding(const dnsp_ctx_t* ctx, const size_t packet_len)
+static unsigned handle_dso_with_padding(const dnsp_ctx_t* ctx, const unsigned packet_len)
 {
-    size_t offset = handle_dso(ctx, packet_len);
+    unsigned offset = handle_dso(ctx, packet_len);
 
     // assert that all our known responses from above are small enough to use
     // the simplest padding case (always fits in the first padding block with
@@ -2174,7 +2174,7 @@ static size_t handle_dso_with_padding(const dnsp_ctx_t* ctx, const size_t packet
         gdnsd_assume(offset >= sizeof(wire_dns_header_t)); // non-zero offsets are 12+
         uint8_t* packet = ctx->txn.pkt->raw;
         gdnsd_assume(packet);
-        const size_t pad_dlen = PAD_BLOCK_SIZE - offset - 4U;
+        const unsigned pad_dlen = PAD_BLOCK_SIZE - offset - 4U;
         gdnsd_put_una16(htons(DNS_DSO_PADDING), &packet[offset]);
         offset += 2U;
         gdnsd_put_una16(htons(pad_dlen), &packet[offset]);

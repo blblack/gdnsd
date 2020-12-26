@@ -39,7 +39,7 @@
 static const char proxy_v2sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
 
 F_NONNULL
-static size_t parse_proxy_v1(char* v1, const size_t dlen, gdnsd_anysin_t* sa)
+static unsigned parse_proxy_v1(char* v1, const unsigned dlen, gdnsd_anysin_t* sa)
 {
     gdnsd_assume(dlen >= 8U);
     gdnsd_assume(!memcmp(v1, "PROXY ", 6));
@@ -87,21 +87,21 @@ static size_t parse_proxy_v1(char* v1, const size_t dlen, gdnsd_anysin_t* sa)
     }
 
     gdnsd_assume(end >= v1);
-    const size_t skip_read = (size_t)(end + 2 - v1); // skip header through CRLF
+    const unsigned skip_read = (unsigned)(end + 2 - v1); // skip header through CRLF
     gdnsd_assume(skip_read);
     gdnsd_assume(skip_read <= sizeof(proxy_hdr_t));
     return skip_read;
 }
 
-size_t proxy_parse(gdnsd_anysin_t* sa, proxy_hdr_t* hdrp, size_t dlen)
+unsigned proxy_parse(gdnsd_anysin_t* sa, proxy_hdr_t* hdrp, unsigned dlen)
 {
-    size_t skip_read = 0;
+    unsigned skip_read = 0;
 
     if (dlen >= 16U && likely(memcmp(hdrp->v2.sig, proxy_v2sig, 12) == 0)
             && likely((hdrp->v2.ver_cmd & 0xF0) == 0x20)) {
         skip_read = 16U + ntohs(hdrp->v2.len);
         if (unlikely(dlen < skip_read)) {
-            log_debug("Proxy v2 parse from %s failed: len %zu < size %zu (too much TLV data and/or non-atomic PROXY?)",
+            log_debug("Proxy v2 parse from %s failed: len %u < size %u (too much TLV data and/or non-atomic PROXY?)",
                       logf_anysin(sa), dlen, skip_read);
             return 0;
         }
@@ -121,7 +121,7 @@ size_t proxy_parse(gdnsd_anysin_t* sa, proxy_hdr_t* hdrp, size_t dlen)
                 a->sin6.sin6_port = hdrp->v2.ipv6.src_port;
                 a->len = sizeof(struct sockaddr_in6);
             } else {
-                log_debug("Proxy v2 parse from %s failed: family %hhu total header len %zu",
+                log_debug("Proxy v2 parse from %s failed: family %hhu total header len %u",
                           logf_anysin(sa), hdrp->v2.fam, skip_read);
                 return 0;
             }

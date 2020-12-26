@@ -93,14 +93,14 @@ static void zf_list_early_destroy(zf_list_t* zfl)
 }
 
 typedef struct zf_threads_t {
-    size_t threads;
-    size_t next_thread;
-    size_t total_count;
+    unsigned threads;
+    unsigned next_thread;
+    unsigned total_count;
     zf_list_t** lists;
     pthread_t* threadids;
 } zf_threads_t;
 
-static zf_threads_t* zf_threads_new(const size_t threads)
+static zf_threads_t* zf_threads_new(const unsigned threads)
 {
     gdnsd_assume(threads);
     zf_threads_t* zft = xcalloc(sizeof(*zft));
@@ -131,7 +131,7 @@ static void zf_threads_add_zone(zf_threads_t* zft, char* full_fn, const char* fn
 F_NONNULL
 static void zf_threads_early_destroy(zf_threads_t* zft)
 {
-    for (size_t i = 0; i < zft->threads; i++)
+    for (unsigned i = 0; i < zft->threads; i++)
         if (zft->lists[i])
             zf_list_early_destroy(zft->lists[i]);
     free(zft->lists);
@@ -209,9 +209,9 @@ static bool zf_threads_load_zones(zf_threads_t* zft, ltree_node_t* new_root_tree
     pthread_attr_setdetachstate(&attribs, PTHREAD_CREATE_JOINABLE);
     pthread_attr_setscope(&attribs, PTHREAD_SCOPE_SYSTEM);
 
-    size_t useful_threads = zft->total_count < zft->threads ? zft->total_count : zft->threads;
+    unsigned useful_threads = zft->total_count < zft->threads ? zft->total_count : zft->threads;
 
-    for (size_t i = 0; i < useful_threads; i++) {
+    for (unsigned i = 0; i < useful_threads; i++) {
         int pthread_err = pthread_create(&zft->threadids[i], &attribs, &zones_worker, zft->lists[i]);
         if (pthread_err)
             log_fatal("pthread_create() of zone data thread failed: %s", logf_strerror(pthread_err));
@@ -222,11 +222,11 @@ static bool zf_threads_load_zones(zf_threads_t* zft, ltree_node_t* new_root_tree
     pthread_attr_destroy(&attribs);
 
     bool failed = false;
-    for (size_t i = 0; i < useful_threads; i++)
+    for (unsigned i = 0; i < useful_threads; i++)
         failed = harvest_zone_worker(zft->threadids[i], zft->lists[i], new_root_tree, new_root_arena, failed);
 
     if (!failed)
-        log_info("rfc1035: Loaded %zu zonefiles from '%s'", zft->total_count, rfc1035_dir);
+        log_info("rfc1035: Loaded %u zonefiles from '%s'", zft->total_count, rfc1035_dir);
 
     free(zft->lists);
     free(zft->threadids);

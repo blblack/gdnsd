@@ -255,8 +255,8 @@ F_NONNULL
 static void start_threads(const socks_cfg_t* socks_cfg)
 {
     dnsio_udp_init(getpid());
-    size_t num_tcp_threads = 0;
-    for (size_t i = 0; i < socks_cfg->num_dns_threads; i++)
+    unsigned num_tcp_threads = 0;
+    for (unsigned i = 0; i < socks_cfg->num_dns_threads; i++)
         if (!socks_cfg->dns_threads[i].is_udp)
             num_tcp_threads++;
     dnsio_tcp_init(num_tcp_threads);
@@ -349,18 +349,18 @@ static void do_tak2(struct ev_loop* loop, const csc_t* csc)
         req.d = (uint32_t)getpid();
         if (csc_txn_getdata(csc, &req, &resp, (char**)&chal_data) != CSC_TXN_OK)
             log_fatal("REPLACE[new daemon]: takeover phase 2 notification attempt failed");
-        const size_t chal_count = csbuf_get_v(&resp);
-        const size_t chal_dlen = resp.d;
-        log_devdebug("TAK2 challenge handoff got count %zu dlen %zu", chal_count, chal_dlen);
-        size_t offset = 0;
-        for (size_t i = 0; i < chal_count; i++) {
+        const unsigned chal_count = csbuf_get_v(&resp);
+        const unsigned chal_dlen = resp.d;
+        log_devdebug("TAK2 challenge handoff got count %u dlen %u", chal_count, chal_dlen);
+        unsigned offset = 0;
+        for (unsigned i = 0; i < chal_count; i++) {
             if (offset + 5U > chal_dlen)
                 log_fatal("REPLACE[new daemon]: corrupt challenge data size");
-            size_t cset_dlen = gdnsd_get_una16(&chal_data[offset]);
+            unsigned cset_dlen = gdnsd_get_una16(&chal_data[offset]);
             offset += 2U;
-            size_t ttl_remain = gdnsd_get_una16(&chal_data[offset]);
+            unsigned ttl_remain = gdnsd_get_una16(&chal_data[offset]);
             offset += 2U;
-            size_t cset_count = chal_data[offset++];
+            unsigned cset_count = chal_data[offset++];
             if (offset + cset_dlen > chal_dlen)
                 log_fatal("REPLACE[new daemon]: corrupt challenge data size");
             if (cset_create(loop, ttl_remain, cset_count, cset_dlen, &chal_data[offset]))
@@ -572,7 +572,7 @@ static css_t* runtime_execute(const char* argv0, socks_cfg_t* socks_cfg, css_t* 
     if (csc) {
         if (!csc_stop_server(csc)) {
             uint64_t* stats_raw = NULL;
-            const size_t dlen = csc_get_stats_handoff(csc, &stats_raw);
+            const unsigned dlen = csc_get_stats_handoff(csc, &stats_raw);
             if (dlen) {
                 gdnsd_assume(stats_raw);
                 statio_deserialize(stats_raw, dlen);

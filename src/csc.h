@@ -108,7 +108,7 @@ csc_txn_rv_t csc_txn_senddata(const csc_t* csc, const csbuf_t* req, csbuf_t* res
 // Retval zero indicates something went wrong, otherwise you can assert it's >=
 // 3 (control sock, control lock, 1+ DNS listen sockets).
 F_NONNULL
-size_t csc_txn_getfds(const csc_t* csc, const csbuf_t* req, csbuf_t* resp, int** resp_fds);
+unsigned csc_txn_getfds(const csc_t* csc, const csbuf_t* req, csbuf_t* resp, int** resp_fds);
 
 // Request the server to shut down.  Non-failing response (false) means the
 // server accepted the command and intends to stop, but does not mean it has
@@ -126,7 +126,7 @@ bool csc_wait_stopping_server(const csc_t* csc);
 // Used during daemon->daemon takeover, to hand off final stats into the
 // baseline of the new daemon.
 F_NONNULL
-size_t csc_get_stats_handoff(const csc_t* csc, uint64_t** raw_u64);
+unsigned csc_get_stats_handoff(const csc_t* csc, uint64_t** raw_u64);
 
 // destructs the control socket handle
 F_NONNULL

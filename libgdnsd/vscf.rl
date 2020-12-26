@@ -370,7 +370,7 @@ static bool scnr_set_simple(vscf_scnr_t* scnr, const char* end)
 static void val_destroy(vscf_data_t* d);
 
 F_NONNULL F_WUNUSED
-static bool vscf_include_file(vscf_scnr_t* scnr, const char* fn, const size_t idx)
+static bool vscf_include_file(vscf_scnr_t* scnr, const char* fn, const unsigned idx)
 {
     vscf_data_t* inc_data = vscf_scan_filename(fn);
 
@@ -423,7 +423,7 @@ static bool vscf_include_glob(vscf_scnr_t* scnr, const char* inc_glob, const int
     }
 
     if (globrv != GLOB_NOMATCH) {
-        for (size_t i = 0; i < globbuf.gl_pathc; i++) {
+        for (unsigned i = 0; i < globbuf.gl_pathc; i++) {
             if (!vscf_include_file(scnr, globbuf.gl_pathv[i], i)) {
                 globfree(&globbuf);
                 return false;
@@ -442,10 +442,10 @@ static bool vscf_include_glob_or_dir(vscf_scnr_t* scnr, const char* glob_or_dir)
     if (!stat(glob_or_dir, &st) && S_ISDIR(st.st_mode)) {
         // we handle the directory case by transforming it into a
         // glob, but allowing GLOB_NOMATCH
-        const size_t inc_dir_len = strlen(glob_or_dir);
+        const unsigned inc_dir_len = strlen(glob_or_dir);
         char* inc_dir_glob = xmalloc(inc_dir_len + 3);
         memcpy(inc_dir_glob, glob_or_dir, inc_dir_len);
-        size_t pos = inc_dir_len;
+        unsigned pos = inc_dir_len;
         if (inc_dir_len > 0 && inc_dir_glob[inc_dir_len - 1] != '/')
             inc_dir_glob[pos++] = '/';
         inc_dir_glob[pos++] = '*';

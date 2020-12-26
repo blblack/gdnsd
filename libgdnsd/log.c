@@ -173,9 +173,9 @@ bool gdnsd_log_neterr_rate_ok(void)
 // The space allocated by logf_dname() + logf_strerror() must be <= 4096.
 #define FMTBUF_SIZE 4096U
 // fmtbuf_common is private to the two functions below it
-static char* fmtbuf_common(const size_t size)
+static char* fmtbuf_common(const unsigned size)
 {
-    static _Thread_local size_t buf_used = 0;
+    static _Thread_local unsigned buf_used = 0;
     static _Thread_local char buf[FMTBUF_SIZE];
 
     char* rv = NULL;
@@ -196,7 +196,7 @@ static char* fmtbuf_common(const size_t size)
 
 // Public (including this file) interfaces to fmtbuf_common()
 
-char* gdnsd_fmtbuf_alloc(const size_t size)
+char* gdnsd_fmtbuf_alloc(const unsigned size)
 {
     if (!size)
         log_fatal("BUG: fmtbuf alloc of zero bytes");
@@ -303,7 +303,7 @@ const char* gdnsd_logf_bt(void)
 {
 #ifdef HAVE_LIBUNWIND
     char* tbuf = gdnsd_fmtbuf_alloc(BT_SIZE);
-    size_t tbuf_pos = 0;
+    unsigned tbuf_pos = 0;
     tbuf[tbuf_pos] = '\0'; // in case no output below
 
     unw_cursor_t cursor;
@@ -322,14 +322,14 @@ const char* gdnsd_logf_bt(void)
         cbuf[0] = '\0'; // in case no output below
         (void)unw_get_proc_name(&cursor, cbuf, BT_MAX_NAME, &offset);
 
-        const size_t size_rem = BT_SIZE - tbuf_pos;
+        const unsigned size_rem = BT_SIZE - tbuf_pos;
         int snp_rv = snprintf(&tbuf[tbuf_pos],
                               size_rem, "\n[ip:%#.16lx sp:%#.16lx] %s+%#lx",
                               (unsigned long)ip, (unsigned long)sp,
                               cbuf, (unsigned long)offset);
-        if (snp_rv < 0 || (size_t)snp_rv >= size_rem)
+        if (snp_rv < 0 || (unsigned)snp_rv >= size_rem)
             break;
-        tbuf_pos += (size_t)snp_rv;
+        tbuf_pos += (unsigned)snp_rv;
     }
     return tbuf;
 #else
