@@ -1,3 +1,6 @@
+3.99.x
+    * Prototype work for future 4.x releases - not production quality!
+
 3.5.2 - 2021-02-23
     * Fixed a very rare potential inter-thread race on daemon shutdown due to a
       'stop' or 'replace'.  If a still-in-progress zone reload operation had
