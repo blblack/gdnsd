@@ -138,6 +138,7 @@ typedef struct {
 #define DNS_TYPE_IXFR 251U
 #define DNS_TYPE_AXFR 252U
 #define DNS_TYPE_ANY 255U
+#define DNS_TYPE_CAA 257U
 
 #define DNS_CLASS_IN 1U
 #define DNS_CLASS_CH 3U

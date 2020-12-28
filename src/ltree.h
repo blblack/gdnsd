@@ -96,11 +96,15 @@ struct ltree_rrset_gen {
 
 struct ltree_rrset_raw {
     ltree_rrset_gen_t gen;
-    unsigned data_len;
+    uint32_t ttl;
+    unsigned data_len; // len of "data" (or 0 if scan_rdata still in use)
     unsigned num_comp_offsets;
     unsigned num_addtl;
-    uint8_t* data;
-    uint16_t* comp_offsets;
+    uint16_t* comp_offsets; // has num_comp_offsets elements (NULL if 0)
+    union {  // parser parses RRs to scan_rdata, which is later post-processed to data
+        uint8_t** scan_rdata; // has gen.count elements if non-NULL and !data_len
+        uint8_t* data; // has data_len bytes if non-NULL
+    };
 };
 
 struct ltree_rrset_dynac {
@@ -151,74 +155,21 @@ struct ltree_node {
 
 F_NONNULL
 void ltree_destroy(ltree_node_t* node);
-F_NONNULL
+F_WUNUSED F_NONNULL
 ltree_node_t* ltree_new_zone(const char* zname);
-F_NONNULL
+F_WUNUSED F_NONNULL
 bool ltree_merge_zone(ltree_node_t* new_root_tree, ltree_node_t* new_zone);
 void* ltree_zones_reloader_thread(void* init_asvoid);
 F_WUNUSED F_NONNULL
 bool ltree_postproc_zone(ltree_node_t* zroot);
 
-// parameter structures for arguments to ltree_add_rec that otherwise
-// have confusingly-long parameter lists
-typedef struct lt_soa_args {
-    const uint8_t* master;
-    const uint8_t* email;
-    unsigned ttl;
-    const unsigned serial;
-    const unsigned refresh;
-    const unsigned retry;
-    const unsigned expire;
-    unsigned ncache;
-} lt_soa_args;
-
-typedef struct lt_srv_args {
-    const uint8_t* rhs;
-    const unsigned ttl;
-    const unsigned priority;
-    const unsigned weight;
-    const unsigned port;
-} lt_srv_args;
-
-typedef struct lt_naptr_args {
-    const uint8_t* rhs;
-    const unsigned ttl;
-    const unsigned order;
-    const unsigned pref;
-    const unsigned text_len;
-    uint8_t* text;
-} lt_naptr_args;
-
 // Adding data to the ltree (called from parser)
 F_WUNUSED F_NONNULL
-bool ltree_add_rec_soa_args(ltree_node_t* zroot, const uint8_t* dname, lt_soa_args args);
-#define ltree_add_rec_soa(_z,_d,...) ltree_add_rec_soa_args(_z,_d,(lt_soa_args){__VA_ARGS__})
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_a(ltree_node_t* zroot, const uint8_t* dname, uint32_t addr, unsigned ttl);
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_aaaa(ltree_node_t* zroot, const uint8_t* dname, const uint8_t* addr, unsigned ttl);
+bool ltree_add_rec(ltree_node_t* zroot, const uint8_t* dname, uint8_t* rdata, const unsigned rrtype, unsigned ttl);
 F_WUNUSED F_NONNULL
 bool ltree_add_rec_dynaddr(ltree_node_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min);
 F_WUNUSED F_NONNULL
-bool ltree_add_rec_cname(ltree_node_t* zroot, const uint8_t* dname, const uint8_t* rhs, unsigned ttl);
-F_WUNUSED F_NONNULL
 bool ltree_add_rec_dync(ltree_node_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min);
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_ptr(ltree_node_t* zroot, const uint8_t* dname, const uint8_t* rhs, unsigned ttl);
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_ns(ltree_node_t* zroot, const uint8_t* dname, const uint8_t* rhs, unsigned ttl);
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_mx(ltree_node_t* zroot, const uint8_t* dname, const uint8_t* rhs, unsigned ttl, const unsigned pref);
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_srv_args(ltree_node_t* zroot, const uint8_t* dname, lt_srv_args args);
-#define ltree_add_rec_srv(_z,_d,...) ltree_add_rec_srv_args(_z,_d,(lt_srv_args){__VA_ARGS__})
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_naptr_args(ltree_node_t* zroot, const uint8_t* dname, lt_naptr_args args);
-#define ltree_add_rec_naptr(_z,_d,...) ltree_add_rec_naptr_args(_z,_d,(lt_naptr_args){__VA_ARGS__})
-F_WUNUSED F_NONNULL
-bool ltree_add_rec_txt(ltree_node_t* zroot, const uint8_t* dname, const unsigned text_len, uint8_t* text, unsigned ttl);
-F_WUNUSED F_NONNULLX(1, 2)
-bool ltree_add_rec_rfc3597(ltree_node_t* zroot, const uint8_t* dname, const unsigned rrtype, unsigned ttl, const unsigned rdlen, uint8_t* rd);
 
 // Load zonefiles (called from main, invokes parser)
 void ltree_load_zones(void);
@@ -349,6 +300,10 @@ static ltree_node_t* ltree_node_find_child(const ltree_node_t* node, const uint8
     }
     return NULL;
 }
+
+// Mostly internal to ltree, but also used by comp.c to realize glue addresses as necc
+F_NONNULL
+void realize_rdata(const ltree_node_t* node, ltree_rrset_raw_t* raw);
 
 // These defines are mainly used in ltree.c, but are also used in comp.c
 #define log_zfatal(...)\
