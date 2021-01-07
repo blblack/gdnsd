@@ -1677,8 +1677,8 @@ static unsigned do_auth_response(dnsp_ctx_t* ctx, const ltree_node_t* dom, const
     }
 
     bool chal_matched = false;
-    if (ctx->txn.qtype == DNS_TYPE_TXT || !ctx->txn.ancount)
-        chal_matched = chal_respond(QNAME_COMP, ctx->txn.qtype, ctx->txn.lqname, packet, &ctx->txn.ancount, &offset, ctx->txn.this_max_response);
+    if (!ctx->txn.ancount)
+        chal_matched = chal_respond(ctx->txn.qtype, ctx->txn.lqname, packet, &ctx->txn.ancount, &offset, ctx->txn.this_max_response);
 
     if (ctx->txn.qtype == DNS_TYPE_ANY) {
         // construct_normal_response is not called for ANY, and
