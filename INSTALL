@@ -21,6 +21,11 @@ The following are recommended but optional:
   GeoIP2 database support:
   https://github.com/maxmind/libmaxminddb/releases
 * libunwind headers and libraries. (for stacktrace on some fatals)
+* Extra crypto libs for DNSSEC P256 algorithm support (either, both, or
+  neither can be used.  By default both are auto-detected and used if
+  present; they can be individually disabled with configure flags):
+** libcrypto >= 1.1.0 (fastest non-deterministic P256 option)
+** libgnutls >= 3.6.10 (slower, but has deterministic P256 as well!)
 
 The following have no real effect on the build or runtime, but are
 required in order to run the testsuite:

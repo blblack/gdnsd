@@ -147,6 +147,46 @@ AS_IF([test -n "$with_systemdsystemunitdir"],[
 AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
 AM_CONDITIONAL(DO_SYSD_UNITFILE, [test -n "$with_systemdsystemunitdir"])
 
+# gdnsd can make optional use of either or both of libgnutls and libcrypto to
+# support P256 signing.  The most flexible option is both of them together, but
+# there can also be valid (e.g. policy) reasons to explicitly disable them.
+
+HAVE_GNUTLS=0
+AC_ARG_WITH([gnutls],
+    [AS_HELP_STRING([--with-gnutls=yes|no|check],
+        [Require or disable gnutls support @<:@default=check@:>@])],
+    [],
+    [with_gnutls=check])
+AS_IF([test "x$with_gnutls" != xno], [
+    PKG_CHECK_MODULES([GNUTLS], [gnutls >= 3.6.10], [HAVE_GNUTLS=1], [HAVE_GNUTLS=0])
+    AS_IF([test $HAVE_GNUTLS -eq 1],[
+          AC_DEFINE([HAVE_GNUTLS],1,[gnutls 3.6.10 or higher available])
+    ])
+    AC_SUBST([GNUTLS_CFLAGS])
+    AC_SUBST([GNUTLS_LIBS])
+])
+AS_IF([test "x$with_gnutls" = xyes -a $HAVE_GNUTLS -ne 1],[
+    AC_MSG_ERROR([gnutls >= 3.6.10 not found, but --with-gnutls was requested explicitly])
+])
+
+HAVE_LIBCRYPTO=0
+AC_ARG_WITH([libcrypto],
+    [AS_HELP_STRING([--with-libcrypto=yes|no|check],
+        [Require or disable libcrypto support @<:@default=check@:>@])],
+    [],
+    [with_libcrypto=check])
+AS_IF([test "x$with_libcrypto" != xno], [
+    PKG_CHECK_MODULES([LIBCRYPTO], [libcrypto >= 1.1.0], [HAVE_LIBCRYPTO=1], [HAVE_LIBCRYPTO=0])
+    AS_IF([test $HAVE_LIBCRYPTO -eq 1],[
+          AC_DEFINE([HAVE_LIBCRYPTO],1,[libcrypto 1.1.0 or higher available])
+    ])
+    AC_SUBST([LIBCRYPTO_CFLAGS])
+    AC_SUBST([LIBCRYPTO_LIBS])
+])
+AS_IF([test "x$with_libcrypto" = xyes -a $HAVE_LIBCRYPTO -ne 1],[
+    AC_MSG_ERROR([libcrypto >= 1.1.0 not found, but --with-libcrypto was requested explicitly])
+])
+
 #---------------------------------------------
 # pthread setname (3 non-portable variants...)
 #---------------------------------------------
@@ -288,10 +328,12 @@ AC_SUBST([GDNSD_DEFPATH_LIBEXEC])
 
 # BUILD_FEATURES for cmdline output
 B_FEAT="prod"
-if test "x$developer" != xno;    then B_FEAT="dev";             fi
-if test "x$HAS_SENDMMSG" = x1;   then B_FEAT="$B_FEAT mmsg";    fi
-if test "x$HAVE_LIBUNWIND" = x1; then B_FEAT="$B_FEAT unwind";  fi
-if test "x$HAVE_GEOIP2" = x1;    then B_FEAT="$B_FEAT geoip2";  fi
+if test "x$developer" != xno;    then B_FEAT="dev";               fi
+if test "x$HAS_SENDMMSG" = x1;   then B_FEAT="$B_FEAT mmsg";      fi
+if test "x$HAVE_LIBUNWIND" = x1; then B_FEAT="$B_FEAT unwind";    fi
+if test "x$HAVE_GEOIP2" = x1;    then B_FEAT="$B_FEAT geoip2";    fi
+if test "x$HAVE_GNUTLS" = x1;    then B_FEAT="$B_FEAT gnutls";    fi
+if test "x$HAVE_LIBCRYPTO" = x1; then B_FEAT="$B_FEAT libcrypto"; fi
 AC_DEFINE_UNQUOTED([BUILD_FEATURES], ["$B_FEAT"], [Build Features])
 
 # BUILD_INFO for cmdline output

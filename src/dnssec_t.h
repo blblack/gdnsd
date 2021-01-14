@@ -1,4 +1,4 @@
-/* Copyright © 2020 Brandon L Black <blblack@gmail.com>
+/* Copyright © 2021 Brandon L Black <blblack@gmail.com>
  *
  * This file is part of gdnsd.
  *
@@ -17,26 +17,13 @@
  *
  */
 
-#ifndef GDNSD_COMP_H
-#define GDNSD_COMP_H
+#ifndef GDNSD_DNSSEC_T_H
+#define GDNSD_DNSSEC_T_H
 
-#include <gdnsd/compiler.h>
+// This file's only purpose is to resolve the dependency loop between
+// structures in ltree.h and dnssec.h
 
-#include "ltree.h"
+struct dnssec_t;
+typedef struct dnssec_t dnssec_t;
 
-#include <stddef.h>
-#include <inttypes.h>
-
-F_NONNULL
-void comp_do_mx_cname_ptr(ltree_rrset_raw_t* rrset, const uint8_t* node_dname);
-
-F_WUNUSED F_NONNULL
-bool comp_do_ns(ltree_rrset_raw_t* rrset, ltree_node_zroot_t* zroot, const ltree_node_t* node, const bool in_deleg);
-
-F_NONNULL
-void comp_do_soa(ltree_rrset_raw_t* rrset, const uint8_t* node_dname);
-
-F_NONNULL
-void comp_do_deleg_ds_nsec(ltree_rrset_raw_t* rrset, const uint8_t* node_dname);
-
-#endif // GDNSD_COMP_H
+#endif // GDNSD_DNSSEC_T_H

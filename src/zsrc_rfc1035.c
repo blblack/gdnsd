@@ -78,6 +78,7 @@ typedef struct zf_list_t zf_list_t;
 struct zf_list_t {
     char* full_fn; // worker input
     const char* fn; // (aliases into above, needs no free)
+    uint32_t tstamp; // consistent timestamp of zone loading op, for incept/expiry
     ltree_node_zroot_t* zroot; // worker output
     zf_list_t* next; // next in list
 };
@@ -111,11 +112,12 @@ static zf_threads_t* zf_threads_new(const unsigned threads)
 }
 
 F_NONNULL
-static void zf_threads_add_zone(zf_threads_t* zft, char* full_fn, const char* fn)
+static void zf_threads_add_zone(zf_threads_t* zft, char* full_fn, const char* fn, const uint32_t tstamp)
 {
     zf_list_t* zfl = xcalloc(sizeof(*zfl));
     zfl->full_fn = full_fn;
     zfl->fn = fn;
+    zfl->tstamp = tstamp;
     gdnsd_assume(zft->next_thread < zft->threads);
     zf_list_t** slot = &zft->lists[zft->next_thread];
     while (*slot)
@@ -153,7 +155,7 @@ static void* zones_worker(void* list_asvoid)
         if (!zroot)
             return (void*)1;
         zfl->zroot = zroot;
-        if (zscan_rfc1035(zroot, zfl->full_fn) || ltree_postproc_zone(zroot))
+        if (zscan_rfc1035(zroot, zfl->full_fn) || ltree_postproc_zone(zroot, zfl->tstamp))
             return (void*)1;
         zfl = zfl->next;
     }
@@ -262,6 +264,7 @@ ltree_node_t* zsrc_rfc1035_load_zones(void)
         return NULL;
     }
 
+    const uint32_t tstamp = (uint32_t)time(NULL);
     zf_threads_t* zft = zf_threads_new(gcfg->zones_rfc1035_threads);
 
     bool failed = false;
@@ -279,7 +282,7 @@ ltree_node_t* zsrc_rfc1035_load_zones(void)
                     free(full_fn);
                     failed = true;
                 } else if (S_ISREG(st.st_mode)) {
-                    zf_threads_add_zone(zft, full_fn, fn);
+                    zf_threads_add_zone(zft, full_fn, fn, tstamp);
                 } else {
                     free(full_fn);
                 }

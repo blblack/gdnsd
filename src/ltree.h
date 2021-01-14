@@ -60,6 +60,7 @@ ltree structure.
 */
 
 #include "dnswire.h"
+#include "dnssec_t.h"
 
 #include <gdnsd/compiler.h>
 #include "plugins/plugapi.h"
@@ -68,6 +69,8 @@ ltree structure.
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdbool.h>
+
+#include <sodium.h>
 
 // Result type used by search functions in ltree.c and dnspacket.c
 typedef enum {
@@ -94,12 +97,23 @@ struct ltree_rrset_gen {
     uint16_t count; // zero indicates _dynac_t, only valid with DNS_TYPE_{A,AAAA,CNAME}
 };
 
+// XXX maybe we should re-specialize a bit here, for deleg/ns/wc/soa/etc...
+// XXX many common nodes in common zones have none of the extras, just "ttl", "data", "data_len"
 struct ltree_rrset_raw {
     ltree_rrset_gen_t gen;
     uint32_t ttl;
     unsigned data_len; // len of "data" (or 0 if scan_rdata still in use)
     unsigned num_comp_offsets;
-    unsigned num_addtl;
+    unsigned num_rrsig; // #rrsig after main rrset
+    union {
+        unsigned rrsig_offset; // boundary between main rrset and rrsigs
+        unsigned deleg_glue_offset; // deleg glue has no rrsig, but we need its start offset
+    };
+    union {
+        unsigned rrsig_len; // data length of rrsig rrs
+        unsigned deleg_comp_offsets; // deleg glue: number of comp_offsets belonging to it
+    };
+    unsigned num_addtl; // #addtl glue at end of buffer (after rrsig, if present)
     uint16_t* comp_offsets; // has num_comp_offsets elements (NULL if 0)
     union {  // parser parses RRs to scan_rdata, which is later post-processed to data
         uint8_t** scan_rdata; // has gen.count elements if non-NULL and !data_len
@@ -158,6 +172,9 @@ typedef struct ltree_node_core {
 typedef struct {
     ltree_node_core_t c;
     uint32_t serial;
+    // "sec" is opaque outside of dnssec.c, but its non-NULL-ness signals we're
+    // working with a signed zone to other code for logical purposes
+    dnssec_t* sec;
 } ltree_node_zroot_t;
 
 union ltree_node {
@@ -173,7 +190,7 @@ F_WUNUSED F_NONNULL
 bool ltree_merge_zone(ltree_node_t** root_of_dns_p, ltree_node_zroot_t* new_zone);
 void* ltree_zones_reloader_thread(void* init_asvoid);
 F_WUNUSED F_NONNULL
-bool ltree_postproc_zone(ltree_node_zroot_t* zroot);
+bool ltree_postproc_zone(ltree_node_zroot_t* zroot, const uint32_t tstamp);
 
 // Adding data to the ltree (called from parser)
 F_WUNUSED F_NONNULL
@@ -315,7 +332,7 @@ static ltree_node_t* ltree_node_find_child(const ltree_node_t* node, const uint8
 
 // Mostly internal to ltree, but also used by comp.c to realize glue addresses as necc
 F_NONNULL
-void realize_rdata(const ltree_node_t* node, ltree_rrset_raw_t* raw);
+void realize_rdata(const ltree_node_t* node, ltree_rrset_raw_t* raw, const ltree_node_zroot_t* zroot, const bool in_deleg);
 
 // These defines are mainly used in ltree.c, but are also used in comp.c
 #define log_zfatal(...)\
