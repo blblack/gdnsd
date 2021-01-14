@@ -31,7 +31,7 @@ F_NONNULL
 void comp_do_mx_cname_ptr(ltree_rrset_raw_t* rrset, const uint8_t* node_dname);
 
 F_WUNUSED F_NONNULL
-bool comp_do_ns(ltree_rrset_raw_t* rrset, ltree_node_t* zroot, const uint8_t* node_dname, const bool in_deleg);
+bool comp_do_ns(ltree_rrset_raw_t* rrset, ltree_node_zroot_t* zroot, const uint8_t* node_dname, const bool in_deleg);
 
 F_NONNULL
 void comp_do_soa(ltree_rrset_raw_t* rrset, const uint8_t* node_dname);

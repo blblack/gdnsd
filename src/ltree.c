@@ -48,7 +48,7 @@ static void ltree_node_insert(const ltree_node_t* node, ltree_node_t* child, uin
 {
     do {
         const uint32_t slot = ((uint32_t)child_hash + probe_dist) & mask;
-        ltree_hslot* s = &node->child_table[slot];
+        ltree_hslot* s = &node->c.child_table[slot];
         if (!s->node) {
             s->node = child;
             s->hash = child_hash;
@@ -78,10 +78,10 @@ static uint8_t* dname_from_name(const uint8_t* name, unsigned name_len)
     return rv;
 }
 
-F_NONNULL
-static ltree_node_t* ltree_node_find_or_add_child(ltree_node_t* node, const uint8_t* child_name, unsigned child_name_len)
+F_NONNULLX(1, 2)
+static ltree_node_t* ltree_node_find_or_add_child(ltree_node_t* node, const uint8_t* child_name, ltree_node_t* ins, unsigned child_name_len)
 {
-    const uint32_t ccount = node->ccount;
+    const uint32_t ccount = node->c.ccount;
     const uintptr_t kh = ltree_hash_label(child_name);
     uint32_t probe_dist = 0;
     uint32_t mask = 0;
@@ -89,11 +89,11 @@ static ltree_node_t* ltree_node_find_or_add_child(ltree_node_t* node, const uint
         mask = count2mask_lf80(ccount);
         do {
             const uint32_t slot = ((uint32_t)kh + probe_dist) & mask;
-            const ltree_hslot* s = &node->child_table[slot];
+            const ltree_hslot* s = &node->c.child_table[slot];
             if (!s->node || ((slot - s->hash) & mask) < probe_dist)
                 break;
-            gdnsd_assume(s->node->dname);
-            if (s->hash == kh && likely(!label_cmp(&s->node->dname[1], child_name)))
+            gdnsd_assume(s->node->c.dname);
+            if (s->hash == kh && likely(!label_cmp(&s->node->c.dname[1], child_name)))
                 return s->node;
             probe_dist++;
         } while (1);
@@ -104,8 +104,8 @@ static ltree_node_t* ltree_node_find_or_add_child(ltree_node_t* node, const uint
     }
     const uint32_t next_mask = count2mask_lf80(ccount + 1U);
     if (next_mask != mask) {
-        ltree_hslot* old_table = node->child_table;
-        node->child_table = xcalloc_n(next_mask + 1U, sizeof(*node->child_table));
+        ltree_hslot* old_table = node->c.child_table;
+        node->c.child_table = xcalloc_n(next_mask + 1U, sizeof(*node->c.child_table));
         if (old_table) {
             for (uint32_t i = 0; i <= mask; i++)
                 if (old_table[i].node)
@@ -115,10 +115,13 @@ static ltree_node_t* ltree_node_find_or_add_child(ltree_node_t* node, const uint
         probe_dist = 0; // if grow, reset saved distance
         mask = next_mask; // new mask in play below
     }
-    ltree_node_t* ins = xcalloc(sizeof(*ins));
-    ins->dname = dname_from_name(child_name, child_name_len);
+
+    if (!ins) {
+        ins = xcalloc(sizeof(*ins));
+        ins->c.dname = dname_from_name(child_name, child_name_len);
+    }
     ltree_node_insert(node, ins, kh, probe_dist, mask);
-    node->ccount++;
+    node->c.ccount++;
     return ins;
 }
 
@@ -145,19 +148,19 @@ static unsigned dname_to_lstack_relative(const uint8_t* dname, const uint8_t** l
 
 // "dname" should be a true FQDN!
 F_NONNULL
-static ltree_node_t* ltree_zone_find_or_add_dname(ltree_node_t* zroot, const uint8_t* dname)
+static ltree_node_t* ltree_zone_find_or_add_dname(ltree_node_zroot_t* zroot, const uint8_t* dname)
 {
-    gdnsd_assume(zroot->dname);
+    gdnsd_assume(zroot->c.dname);
     gdnsd_assert(dname_status(dname) == DNAME_VALID);
-    gdnsd_assert(dname_isinzone(zroot->dname, dname));
+    gdnsd_assert(dname_isinzone(zroot->c.dname, dname));
 
     uint8_t lstack_len[127];
     const uint8_t* lstack[127];
-    unsigned lcount = dname_to_lstack_relative(dname, lstack, lstack_len, zroot->dname);
+    unsigned lcount = dname_to_lstack_relative(dname, lstack, lstack_len, zroot->c.dname);
 
-    ltree_node_t* current = zroot;
+    ltree_node_t* current = (ltree_node_t*)zroot;
     while (lcount-- && current)
-        current = ltree_node_find_or_add_child(current, lstack[lcount], lstack_len[lcount]);
+        current = ltree_node_find_or_add_child(current, lstack[lcount], NULL, lstack_len[lcount]);
 
     return current;
 }
@@ -179,7 +182,7 @@ static int rdata_cmp(const uint8_t* r1, const uint8_t* r2)
     return rv;
 }
 
-bool ltree_add_rec(ltree_node_t* zroot, const uint8_t* dname, uint8_t* rdata, unsigned rrtype, unsigned ttl)
+bool ltree_add_rec(ltree_node_zroot_t* zroot, const uint8_t* dname, uint8_t* rdata, unsigned rrtype, unsigned ttl)
 {
     ltree_node_t* node = ltree_zone_find_or_add_dname(zroot, dname);
     if (unlikely(!node))
@@ -187,18 +190,18 @@ bool ltree_add_rec(ltree_node_t* zroot, const uint8_t* dname, uint8_t* rdata, un
 
     // Check both directions: Adding CNAME with any other existing rrset, and
     // adding anything to a node that already has a CNAME:
-    if (node->rrsets)
-        if (rrtype == DNS_TYPE_CNAME || node->rrsets->gen.type == DNS_TYPE_CNAME)
+    if (node->c.rrsets)
+        if (rrtype == DNS_TYPE_CNAME || node->c.rrsets->gen.type == DNS_TYPE_CNAME)
             log_zfatal("Name '%s': CNAME cannot co-exist with any other record, even other CNAMEs", logf_dname(dname));
 
-    if (rrtype == DNS_TYPE_NS && node != zroot) {
-        node->zone_cut = true;
-        if (dname_iswild(node->dname))
+    if (rrtype == DNS_TYPE_NS && node != (ltree_node_t*)zroot) {
+        if (dname_iswild(node->c.dname))
             log_zfatal("Name '%s': Cannot delegate via wildcards", logf_dname(dname));
+        node->c.zone_cut_deleg = true;
     }
 
     ltree_rrset_raw_t* rrset = NULL;
-    ltree_rrset_t** store_at = &node->rrsets;
+    ltree_rrset_t** store_at = &node->c.rrsets;
     while (!rrset && *store_at) {
         if ((*store_at)->gen.type == rrtype)
             rrset = (ltree_rrset_raw_t*)*store_at;
@@ -215,7 +218,7 @@ bool ltree_add_rec(ltree_node_t* zroot, const uint8_t* dname, uint8_t* rdata, un
             log_zwarn("Name '%s': All TTLs for type %s should match (using %u)", logf_dname(dname), logf_rrtype(rrtype), rrset->ttl);
         if (rrtype == DNS_TYPE_SOA) {
             // Parsers only allow SOA at zone root
-            gdnsd_assert(zroot == node);
+            gdnsd_assert(node != (ltree_node_t*)zroot);
             if (rrset->gen.count)
                 log_zfatal("Zone '%s': SOA defined twice", logf_dname(dname));
         }
@@ -252,7 +255,7 @@ bool ltree_add_rec(ltree_node_t* zroot, const uint8_t* dname, uint8_t* rdata, un
     return false;
 }
 
-bool ltree_add_rec_dynaddr(ltree_node_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min)
+bool ltree_add_rec_dynaddr(ltree_node_zroot_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min)
 {
     if (ttl_min < gcfg->min_ttl) {
         log_zwarn("Name '%s': DYNA Min-TTL /%u too small, clamped to min_ttl setting of %u", logf_dname(dname), ttl_min, gcfg->min_ttl);
@@ -268,7 +271,7 @@ bool ltree_add_rec_dynaddr(ltree_node_t* zroot, const uint8_t* dname, const char
         return true; // find_or_add already logged about it
 
     ltree_rrset_raw_t* rrset = NULL;
-    ltree_rrset_t** store_at = &node->rrsets;
+    ltree_rrset_t** store_at = &node->c.rrsets;
     while (*store_at) {
         rrset = (ltree_rrset_raw_t*)*store_at;
         if (rrset->gen.type == DNS_TYPE_A || rrset->gen.type == DNS_TYPE_AAAA)
@@ -320,7 +323,7 @@ bool ltree_add_rec_dynaddr(ltree_node_t* zroot, const uint8_t* dname, const char
     log_zfatal("Name '%s': DYNA RR refers to plugin '%s', which is not loaded", logf_dname(dname), plugin_name);
 }
 
-bool ltree_add_rec_dync(ltree_node_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min)
+bool ltree_add_rec_dync(ltree_node_zroot_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min)
 {
     if (ttl_min < gcfg->min_ttl) {
         log_zwarn("Name '%s': DYNC Min-TTL /%u too small, clamped to min_ttl setting of %u", logf_dname(dname), ttl_min, gcfg->min_ttl);
@@ -334,10 +337,10 @@ bool ltree_add_rec_dync(ltree_node_t* zroot, const uint8_t* dname, const char* r
     ltree_node_t* node = ltree_zone_find_or_add_dname(zroot, dname);
     if (unlikely(!node))
         return true; // find_or_add already logged about it
-    if (node->rrsets)
+    if (node->c.rrsets)
         log_zfatal("Name '%s': DYNC not allowed alongside other data", logf_dname(dname));
     ltree_rrset_dynac_t* rrset = xcalloc(sizeof(*rrset));
-    node->rrsets = (ltree_rrset_t*)rrset;
+    node->c.rrsets = (ltree_rrset_t*)rrset;
     rrset->gen.type = DNS_TYPE_CNAME;
     rrset->ttl_max = ttl_max;
     rrset->ttl_min = ttl_min;
@@ -360,7 +363,7 @@ bool ltree_add_rec_dync(ltree_node_t* zroot, const uint8_t* dname, const char* r
 
     rrset->resource = 0;
     if (p->map_res) {
-        const int res = p->map_res(resource_name, zroot->dname);
+        const int res = p->map_res(resource_name, zroot->c.dname);
         if (res < 0)
             log_zfatal("Name '%s': plugin '%s' rejected DYNC resource '%s'", logf_dname(dname), plugin_name, resource_name);
         rrset->resource = (unsigned)res;
@@ -370,17 +373,17 @@ bool ltree_add_rec_dync(ltree_node_t* zroot, const uint8_t* dname, const char* r
 }
 
 F_WUNUSED F_NONNULL
-static bool check_deleg(const ltree_node_t* node, const bool at_deleg)
+static bool check_deleg(const ltree_node_t* node)
 {
-    if (dname_iswild(node->dname))
+    if (dname_iswild(node->c.dname))
         log_zfatal("Domainname '%s': Wildcards not allowed for delegation/glue data",
-                   logf_dname(node->dname));
+                   logf_dname(node->c.dname));
 
-    const ltree_rrset_t* rrset_dchk = node->rrsets;
+    const ltree_rrset_t* rrset_dchk = node->c.rrsets;
     while (rrset_dchk) {
-        if (!(rrset_dchk->gen.type == DNS_TYPE_A || rrset_dchk->gen.type == DNS_TYPE_AAAA || (rrset_dchk->gen.type == DNS_TYPE_NS && at_deleg)))
+        if (!(rrset_dchk->gen.type == DNS_TYPE_A || rrset_dchk->gen.type == DNS_TYPE_AAAA || (rrset_dchk->gen.type == DNS_TYPE_NS && node->c.zone_cut_deleg)))
             log_zfatal("Domainname '%s' is inside a delegated subzone, and can only have NS and/or address records as appropriate",
-                       logf_dname(node->dname));
+                       logf_dname(node->c.dname));
         rrset_dchk = rrset_dchk->gen.next;
     }
 
@@ -415,7 +418,7 @@ void realize_rdata(const ltree_node_t* node, ltree_rrset_raw_t* raw)
     // Encode a compressed left side (name, type, class, ttl)
     uint8_t left[10];
     unsigned left_len = 0;
-    left_len += store_qname_comp(left, node->dname);
+    left_len += store_qname_comp(left, node->c.dname);
     gdnsd_put_una16(htons(raw->gen.type), &left[left_len]);
     left_len += 2U;
     gdnsd_put_una16(htons(DNS_CLASS_IN), &left[left_len]);
@@ -447,43 +450,41 @@ void realize_rdata(const ltree_node_t* node, ltree_rrset_raw_t* raw)
 }
 
 F_WUNUSED F_NONNULL
-static bool postproc_static_rrset(const ltree_node_t* node, ltree_rrset_raw_t* raw, ltree_node_t* zroot, const bool in_deleg)
+static bool postproc_static_rrset(const ltree_node_t* node, ltree_rrset_raw_t* raw, ltree_node_zroot_t* zroot, const bool in_deleg)
 {
     realize_rdata(node, raw);
     // Type-specific compression for raw (and gluing in the case of NS):
     if (raw->gen.type == DNS_TYPE_MX || raw->gen.type == DNS_TYPE_CNAME || raw->gen.type == DNS_TYPE_PTR)
-        comp_do_mx_cname_ptr(raw, node->dname);
+        comp_do_mx_cname_ptr(raw, node->c.dname);
     else if (raw->gen.type == DNS_TYPE_SOA)
-        comp_do_soa(raw, node->dname);
+        comp_do_soa(raw, node->c.dname);
     else if (raw->gen.type == DNS_TYPE_NS)
-        if (comp_do_ns(raw, zroot, node->dname, in_deleg))
+        if (comp_do_ns(raw, zroot, node->c.dname, in_deleg))
             return true;
     return false;
 }
 
 F_WUNUSED F_NONNULL
-static bool ltree_postproc_node(ltree_node_t* node, ltree_node_t* zroot, const bool in_deleg)
+static bool ltree_postproc_node(ltree_node_t* node, ltree_node_zroot_t* zroot, const bool in_deleg)
 {
-    const bool at_deleg = node->zone_cut && node != zroot;
-
     // This checks for junk/excess/wildcard data in delegations, imposing the
     // constraint that within a delegation cut (which starts at any NS record
     // other than at a zone root), only A and AAAA records with non-wildcard
     // labels can exist.
-    if (in_deleg && check_deleg(node, at_deleg))
+    if (in_deleg && check_deleg(node))
         return true;
 
     // Size for everything but the actual response RRs:
     unsigned rsize_base = BASE_RESP_SIZE;
-    if (at_deleg || dname_iswild(node->dname))
+    if (node->c.zone_cut_deleg || dname_iswild(node->c.dname))
         // For delegations and wildcards, assume max qname len
         rsize_base += 255U;
     else
-        rsize_base += *node->dname;
+        rsize_base += *node->c.dname;
 
     // Iterate the rrsets of the target node, doing various fixup/comp/glue
     // work and finally checking their response packet size limits:
-    ltree_rrset_t* rrset = node->rrsets;
+    ltree_rrset_t* rrset = node->c.rrsets;
     while (rrset) {
         // dynamics skip all of this: they're known-small and don't have data to
         // glue or compress:
@@ -496,7 +497,7 @@ static bool ltree_postproc_node(ltree_node_t* node, ltree_node_t* zroot, const b
             unsigned rsize_resp = rsize_base + rrset->raw.data_len;
             if (rsize_resp > MAX_RESPONSE_DATA)
                 log_zfatal("'%s %s' has too much data (%u > %u)",
-                           logf_dname(node->dname), logf_rrtype(rrset->gen.type),
+                           logf_dname(node->c.dname), logf_rrtype(rrset->gen.type),
                            rsize_resp, MAX_RESPONSE_DATA);
         }
         rrset = rrset->gen.next;
@@ -506,12 +507,12 @@ static bool ltree_postproc_node(ltree_node_t* node, ltree_node_t* zroot, const b
 }
 
 F_WUNUSED F_NONNULL
-static bool ltree_postproc_zroot(ltree_node_t* zroot)
+static bool ltree_postproc_zroot(ltree_node_zroot_t* zroot)
 {
     ltree_rrset_t* zroot_soa = NULL;
     const ltree_rrset_t* zroot_ns = NULL;
 
-    ltree_rrset_t* rrset = zroot->rrsets;
+    ltree_rrset_t* rrset = zroot->c.rrsets;
     while (rrset) {
         switch (rrset->gen.type) {
         case DNS_TYPE_SOA:
@@ -527,36 +528,44 @@ static bool ltree_postproc_zroot(ltree_node_t* zroot)
     }
 
     if (!zroot_soa)
-        log_zfatal("Zone '%s' has no SOA record", logf_dname(zroot->dname));
+        log_zfatal("Zone '%s' has no SOA record", logf_dname(zroot->c.dname));
     if (!zroot_ns)
-        log_zfatal("Zone '%s' has no NS records", logf_dname(zroot->dname));
+        log_zfatal("Zone '%s' has no NS records", logf_dname(zroot->c.dname));
     gdnsd_assert(zroot_ns->gen.count);
     if (zroot_ns->gen.count < 2)
-        log_zwarn("Zone '%s' only has one NS record, this is (probably) bad practice", logf_dname(zroot->dname));
+        log_zwarn("Zone '%s' only has one NS record, this is (probably) bad practice", logf_dname(zroot->c.dname));
 
     // In the probably-rare case that the SOA record wasn't the first data line
     // in the zonefile, re-arrange the rrsets to place it at the beginning, so
     // that we can rely on it being the first rrset at runtime over in
     // dnspacket.c:
-    if (unlikely(zroot_soa != zroot->rrsets)) {
-        ltree_rrset_t* srch = zroot->rrsets;
+    if (unlikely(zroot_soa != zroot->c.rrsets)) {
+        ltree_rrset_t* srch = zroot->c.rrsets;
         while (srch->gen.next != zroot_soa)
             srch = srch->gen.next;
         srch->gen.next = zroot_soa->gen.next;
-        zroot_soa->gen.next = zroot->rrsets;
-        zroot->rrsets = zroot_soa;
+        zroot_soa->gen.next = zroot->c.rrsets;
+        zroot->c.rrsets = zroot_soa;
     }
+
+    // Extract SOA serial to zone->serial
+    ltree_rrset_raw_t* zsoa = &zroot_soa->raw;
+    gdnsd_assert(zsoa->num_comp_offsets == UINT_MAX); // still in scan_rdata mode
+    gdnsd_assume(zsoa->scan_rdata && zsoa->scan_rdata[0]);
+    const unsigned serial_offset = ntohs(gdnsd_get_una16(zsoa->scan_rdata[0])) - 18U;
+    zroot->serial = ntohl(gdnsd_get_una32(&zsoa->scan_rdata[0][serial_offset]));
+
     return false;
 }
 
 F_WUNUSED F_NONNULL
-static bool ltree_postproc_recurse(ltree_node_t* node, ltree_node_t* zroot, bool in_deleg)
+static bool ltree_postproc_recurse(ltree_node_t* node, ltree_node_zroot_t* zroot, bool in_deleg)
 {
-    gdnsd_assume(node->dname);
+    gdnsd_assume(node->c.dname);
 
-    if (node != zroot && node->zone_cut) {
+    if (node->c.zone_cut_deleg) {
         if (in_deleg)
-            log_zfatal("Delegation '%s' is within another delegation", logf_dname(node->dname));
+            log_zfatal("Delegation '%s' is within another delegation", logf_dname(node->c.dname));
         in_deleg = true;
     }
 
@@ -564,12 +573,12 @@ static bool ltree_postproc_recurse(ltree_node_t* node, ltree_node_t* zroot, bool
         return true;
 
     // Recurse into children
-    const uint32_t ccount = node->ccount;
+    const uint32_t ccount = node->c.ccount;
     if (ccount) {
-        gdnsd_assume(node->child_table);
+        gdnsd_assume(node->c.child_table);
         const uint32_t cmask = count2mask_lf80(ccount);
         for (uint32_t i = 0; i <= cmask; i++) {
-            ltree_node_t* child = node->child_table[i].node;
+            ltree_node_t* child = node->c.child_table[i].node;
             if (child && unlikely(ltree_postproc_recurse(child, zroot, in_deleg)))
                 return true;
         }
@@ -579,37 +588,36 @@ static bool ltree_postproc_recurse(ltree_node_t* node, ltree_node_t* zroot, bool
 }
 
 F_NONNULL
-static void ltree_postproc_recurse_phase2(ltree_node_t* node, ltree_node_t* zroot)
+static void ltree_postproc_recurse_phase2(ltree_node_t* node, ltree_node_zroot_t* zroot)
 {
-    gdnsd_assume(node->dname);
+    gdnsd_assume(node->c.dname);
 
     // Recurse into children and destroy all child nodes of delegation points as we go
-    const uint32_t ccount = node->ccount;
+    const uint32_t ccount = node->c.ccount;
     if (ccount) {
-        gdnsd_assume(node->child_table);
+        gdnsd_assume(node->c.child_table);
         const uint32_t cmask = count2mask_lf80(ccount);
         for (uint32_t i = 0; i <= cmask; i++) {
-            ltree_node_t* child = node->child_table[i].node;
+            ltree_node_t* child = node->c.child_table[i].node;
             if (child) {
-                if (node->zone_cut && node != zroot)
+                if (node->c.zone_cut_deleg)
                     ltree_destroy(child);
                 else
                     ltree_postproc_recurse_phase2(child, zroot);
             }
         }
-        if (node->zone_cut && node != zroot) {
-            free(node->child_table);
-            node->child_table = NULL;
-            node->ccount = 0;
+        if (node->c.zone_cut_deleg) {
+            free(node->c.child_table);
+            node->c.child_table = NULL;
+            node->c.ccount = 0;
         }
     }
 
     // As we unwind from recursion at a deleg cut, unless we already have a
     // singular NS RRset, delete the excess address rrsets leaving only the NS
-    if (node->zone_cut && node != zroot
-            && (node->rrsets->gen.type != DNS_TYPE_NS || (node->rrsets->gen.next))) {
+    if (node->c.zone_cut_deleg && (node->c.rrsets->gen.type != DNS_TYPE_NS || (node->c.rrsets->gen.next))) {
         ltree_rrset_t* ns = NULL;
-        ltree_rrset_t* srch = node->rrsets;
+        ltree_rrset_t* srch = node->c.rrsets;
         gdnsd_assume(srch); // always has at least NS
         do {
             ltree_rrset_t* next = srch->gen.next;
@@ -624,11 +632,11 @@ static void ltree_postproc_recurse_phase2(ltree_node_t* node, ltree_node_t* zroo
         } while (srch);
         gdnsd_assume(ns);
         ns->gen.next = NULL;
-        node->rrsets = ns;
+        node->c.rrsets = ns;
     }
 }
 
-bool ltree_postproc_zone(ltree_node_t* zroot)
+bool ltree_postproc_zone(ltree_node_zroot_t* zroot)
 {
     if (unlikely(ltree_postproc_zroot(zroot)))
         return true;
@@ -636,20 +644,20 @@ bool ltree_postproc_zone(ltree_node_t* zroot)
     // Recursively process tree nodes breadth-first for things like data sanity
     // checks (e.g. CNAME+X), RHS compression, NS glue attachment, output size
     // checks, etc, etc...
-    if (unlikely(ltree_postproc_recurse(zroot, zroot, false)))
+    if (unlikely(ltree_postproc_recurse((ltree_node_t*)zroot, zroot, false)))
         return true;
 
     // The second recursive phase destroys all nodes and address rrset data
     // beneath delegation points, as their data was already consumed into the
     // appropriate NS RRSets at (possibly different) delegation points, which
     // will now be the only rrset left at delegation nodes.  Cannot fail.
-    ltree_postproc_recurse_phase2(zroot, zroot);
+    ltree_postproc_recurse_phase2((ltree_node_t*)zroot, zroot);
     return false;
 }
 
 void ltree_destroy(ltree_node_t* node)
 {
-    ltree_rrset_t* rrset = node->rrsets;
+    ltree_rrset_t* rrset = node->c.rrsets;
     while (rrset) {
         ltree_rrset_t* next = rrset->gen.next;
         // Everything is in raw form, except !count dynac entries
@@ -670,14 +678,14 @@ void ltree_destroy(ltree_node_t* node)
         rrset = next;
     }
 
-    if (node->child_table) {
-        const uint32_t mask = count2mask_lf80(node->ccount);
+    if (node->c.child_table) {
+        const uint32_t mask = count2mask_lf80(node->c.ccount);
         for (uint32_t i = 0; i <= mask; i++)
-            if (node->child_table[i].node)
-                ltree_destroy(node->child_table[i].node);
-        free(node->child_table);
+            if (node->c.child_table[i].node)
+                ltree_destroy(node->c.child_table[i].node);
+        free(node->c.child_table);
     }
-    free(node->dname);
+    free(node->c.dname);
     free(node);
 }
 
@@ -696,16 +704,10 @@ void* ltree_zones_reloader_thread(void* init_asvoid)
 
     uintptr_t rv = 0;
 
-    ltree_node_t* new_root_tree = xcalloc(sizeof(*new_root_tree));
-    new_root_tree->dname = xmalloc(2U);
-    new_root_tree->dname[0] = '\1';
-    new_root_tree->dname[1] = '\0';
+    // This does not fail if the zones data directory doesn't exist
+    ltree_node_t* new_root_tree = zsrc_rfc1035_load_zones();
 
-    // These do not fail if their data directory doesn't exist
-    const bool rfc1035_failed = zsrc_rfc1035_load_zones(new_root_tree);
-
-    if (rfc1035_failed) {
-        ltree_destroy(new_root_tree);
+    if (!new_root_tree) {
         rv = 1; // the zsrc already logged why
     } else {
         ltree_node_t* old_root_tree = GRCU_OWN_READ(root_tree);
@@ -727,7 +729,7 @@ void ltree_init(void)
     zsrc_rfc1035_init();
 }
 
-ltree_node_t* ltree_new_zone(const char* zname)
+ltree_node_zroot_t* ltree_new_zone(const char* zname)
 {
     uint8_t dname[256];
     dname_status_t status = dname_from_string(dname, zname, strlen(zname));
@@ -743,9 +745,9 @@ ltree_node_t* ltree_new_zone(const char* zname)
     if (status == DNAME_PARTIAL)
         dname_terminate(dname);
 
-    ltree_node_t* zroot = xcalloc(sizeof(*zroot));
-    zroot->zone_cut = true;
-    zroot->dname = dname_dup(dname);
+    ltree_node_zroot_t* zroot = xcalloc(sizeof(*zroot));
+    zroot->c.zone_cut_root = true;
+    zroot->c.dname = dname_dup(dname);
     return zroot;
 }
 
@@ -769,52 +771,52 @@ static unsigned dname_to_lstack(const uint8_t* dname, const uint8_t** lstack, ui
     return lcount;
 }
 
-bool ltree_merge_zone(ltree_node_t* new_root_tree, ltree_node_t* zroot)
+bool ltree_merge_zone(ltree_node_t** root_of_dns_p, ltree_node_zroot_t* zroot)
 {
-    gdnsd_assume(zroot->dname);
-    gdnsd_assume(zroot->zone_cut);
-    gdnsd_assume(!new_root_tree->dname[1]); // merge target is global root
+    gdnsd_assume(zroot->c.dname);
+    gdnsd_assume(zroot->c.zone_cut_root);
+
+    ltree_node_t* root_of_dns = *root_of_dns_p;
+
+    gdnsd_assume(!root_of_dns->c.dname[1]); // merge target is global root
+
+    // Special case for insert of ROOT_ZONE, has to replace *root_of_dns_p storage
+    if (!zroot->c.dname[1]) { // ROOT_ZONE
+        if (root_of_dns->c.ccount) {
+            log_err("ROOT_ZONE cannot co-exist with other zones");
+            return true;
+        }
+        ltree_destroy(root_of_dns);
+        *root_of_dns_p = (ltree_node_t*)zroot;
+        log_info("ROOT ZONE with serial %" PRIu32 " loaded", zroot->serial);
+        return false;
+    }
 
     uint8_t lstack_len[127];
     const uint8_t* lstack[127];
-    unsigned lcount = dname_to_lstack(zroot->dname, lstack, lstack_len);
+    unsigned lcount = dname_to_lstack(zroot->c.dname, lstack, lstack_len);
 
-    ltree_node_t* n = new_root_tree;
+    ltree_node_t* n = root_of_dns;
     while (lcount) {
-        if (n->zone_cut) {
-            log_err("Zone '%s' is a sub-zone of an existing zone", logf_dname(zroot->dname));
+        if (n->c.zone_cut_root) {
+            log_err("Zone '%s' is a sub-zone of an existing zone", logf_dname(zroot->c.dname));
             return true;
         }
         lcount--;
-        n = ltree_node_find_or_add_child(n, lstack[lcount], lstack_len[lcount]);
+        ltree_node_t* ins = lcount ? NULL : (ltree_node_t*)zroot;
+        n = ltree_node_find_or_add_child(n, lstack[lcount], ins, lstack_len[lcount]);
         if (unlikely(!n))
             return true; // find_or_add already logged about it
     }
 
-    if (n->zone_cut) {
-        log_err("Zone '%s' is a duplicate of an existing zone", logf_dname(zroot->dname));
+    if (n != (ltree_node_t*)zroot) {
+        if (n->c.zone_cut_root)
+            log_err("Zone '%s' is a duplicate of an existing zone", logf_dname(zroot->c.dname));
+        else if (n->c.ccount)
+            log_err("Zone '%s' is a super-zone of one or more existing zones", logf_dname(zroot->c.dname));
         return true;
     }
 
-    if (n->ccount) {
-        log_err("Zone '%s' is a super-zone of one or more existing zones", logf_dname(zroot->dname));
-        return true;
-    }
-    gdnsd_assume(!n->child_table);
-    gdnsd_assume(!n->rrsets);
-    gdnsd_assume(n->dname);
-    free(n->dname); // to be replaced by the zroot name storage
-    memcpy(n, zroot, sizeof(*n));
-    free(zroot);
-    gdnsd_assume(n->rrsets);
-    gdnsd_assume(n->dname);
-
-    // Extract serial just for this log output:
-    ltree_rrset_raw_t* zsoa = &n->rrsets->raw;
-    gdnsd_assume(zsoa->gen.type == DNS_TYPE_SOA);
-    gdnsd_assume(zsoa->data_len >= 36U); // bare min with full compression on email+master
-    const unsigned serial = ntohl(gdnsd_get_una32(&zsoa->data[zsoa->data_len - 20U]));
-    log_info("Zone %s with serial %u loaded", logf_dname(n->dname), serial);
-
+    log_info("Zone %s with serial %" PRIu32 " loaded", logf_dname(zroot->c.dname), zroot->serial);
     return false;
 }

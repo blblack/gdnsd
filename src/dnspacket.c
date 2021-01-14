@@ -891,19 +891,19 @@ static ltree_dname_status_t search_ltree_for_name(const uint8_t* name, search_re
     unsigned cur_label_len = *cur_label;
     unsigned name_remaining_depth = name_len - 1U;
     while (cur_node) {
-        if (cur_node->zone_cut) {
-            if (res->auth) {
-                gdnsd_assume(rval == DNAME_AUTH);
-                gdnsd_assume(cur_label >= treepath);
-                res->comp_fixup_auth = name_remaining_depth;
-                res->dom = cur_node;
-                return DNAME_DELEG;
-            }
+        if (cur_node->c.zone_cut_root) {
             gdnsd_assert(rval == DNAME_NOAUTH);
             gdnsd_assert(!res->auth);
             rval = DNAME_AUTH;
             res->comp_fixup_auth = name_remaining_depth;
             res->auth = cur_node;
+        } else if (cur_node->c.zone_cut_deleg) {
+            gdnsd_assert(res->auth);
+            gdnsd_assert(rval == DNAME_AUTH);
+            gdnsd_assert(cur_label >= treepath);
+            res->comp_fixup_auth = name_remaining_depth;
+            res->dom = cur_node;
+            return DNAME_DELEG;
         }
 
         if (!cur_label_len) {
@@ -957,7 +957,7 @@ static unsigned do_auth_response(dnsp_ctx_t* ctx, const ltree_node_t* dom, const
     wire_dns_header_t* res_hdr = &ctx->txn.pkt->hdr;
     res_hdr->flags1 |= 4; // AA bit
 
-    const ltree_rrset_t* rrsets = dom ? dom->rrsets : NULL;
+    const ltree_rrset_t* rrsets = dom ? dom->c.rrsets : NULL;
 
     if (rrsets) {
         if (rrsets->gen.type == DNS_TYPE_CNAME) {
@@ -1001,9 +1001,9 @@ static unsigned do_auth_response(dnsp_ctx_t* ctx, const ltree_node_t* dom, const
 
     if (!ctx->txn.ancount) {
         // ltree ensures SOA is the first rrset in the zone root node
-        gdnsd_assume(auth->rrsets);
-        gdnsd_assert(auth->rrsets->gen.type == DNS_TYPE_SOA);
-        offset = encode_rrs_raw(ctx, offset, &auth->rrsets->raw);
+        gdnsd_assume(auth->c.rrsets);
+        gdnsd_assert(auth->c.rrsets->gen.type == DNS_TYPE_SOA);
+        offset = encode_rrs_raw(ctx, offset, &auth->c.rrsets->raw);
         // Transfer the singleton SOA's count from answer to auth section.
         gdnsd_assert(ctx->txn.ancount == 1 && !ctx->txn.nscount);
         ctx->txn.nscount = 1;
@@ -1035,9 +1035,9 @@ static unsigned db_lookup(dnsp_ctx_t* ctx, unsigned offset)
 
     if (status == DNAME_DELEG) {
         gdnsd_assume(res.dom);
-        gdnsd_assume(res.dom->rrsets);
-        gdnsd_assume(res.dom->rrsets->gen.type == DNS_TYPE_NS);
-        const ltree_rrset_raw_t* ns = &res.dom->rrsets->raw;
+        gdnsd_assume(res.dom->c.rrsets);
+        gdnsd_assume(res.dom->c.rrsets->gen.type == DNS_TYPE_NS);
+        const ltree_rrset_raw_t* ns = &res.dom->c.rrsets->raw;
         // DNAME_DELEG uses the same code we'd use for zroot qtype=NS, but we
         // have to transfer the count of NS RRs over to the auth section
         // afterwards as a hackaround.

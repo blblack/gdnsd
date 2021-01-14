@@ -124,26 +124,28 @@ union ltree_rrset {
     ltree_rrset_dynac_t dynac;
 };
 
-struct ltree_node;
-typedef struct ltree_node ltree_node_t;
+union ltree_node;
+typedef union ltree_node ltree_node_t;
 
 typedef struct ltree_hslot {
     uintptr_t hash;
     ltree_node_t* node;
 } ltree_hslot;
 
-struct ltree_node {
+typedef struct ltree_node_core {
 #if SIZEOF_UINTPTR_T == 8
 #  define LTREE_NODE_MAX_SLOTS UINT32_MAX
     uint32_t ccount;
     struct {
-        uint32_t zone_cut : 1;
+        uint32_t zone_cut_root : 1;
+        uint32_t zone_cut_deleg : 1;
     };
 #else
-#  define LTREE_NODE_MAX_SLOTS (UINT32_MAX >> 1U)
+#  define LTREE_NODE_MAX_SLOTS (UINT32_MAX >> 2U)
     struct {
-        uint32_t ccount : 31;
-        uint32_t zone_cut : 1;
+        uint32_t ccount : 30;
+        uint32_t zone_cut_root : 1;
+        uint32_t zone_cut_deleg : 1;
     };
 #endif
     uint8_t* dname;
@@ -151,25 +153,35 @@ struct ltree_node {
     // rrsets is a linked list.  In zone roots, the SOA rrset is always first.
     // In delegation nodes, the NS rrset is always first.
     ltree_rrset_t* rrsets;
+} ltree_node_core_t;
+
+typedef struct {
+    ltree_node_core_t c;
+    uint32_t serial;
+} ltree_node_zroot_t;
+
+union ltree_node {
+    ltree_node_core_t c;
+    ltree_node_zroot_t z;
 };
 
 F_NONNULL
 void ltree_destroy(ltree_node_t* node);
 F_WUNUSED F_NONNULL
-ltree_node_t* ltree_new_zone(const char* zname);
+ltree_node_zroot_t* ltree_new_zone(const char* zname);
 F_WUNUSED F_NONNULL
-bool ltree_merge_zone(ltree_node_t* new_root_tree, ltree_node_t* new_zone);
+bool ltree_merge_zone(ltree_node_t** root_of_dns_p, ltree_node_zroot_t* new_zone);
 void* ltree_zones_reloader_thread(void* init_asvoid);
 F_WUNUSED F_NONNULL
-bool ltree_postproc_zone(ltree_node_t* zroot);
+bool ltree_postproc_zone(ltree_node_zroot_t* zroot);
 
 // Adding data to the ltree (called from parser)
 F_WUNUSED F_NONNULL
-bool ltree_add_rec(ltree_node_t* zroot, const uint8_t* dname, uint8_t* rdata, const unsigned rrtype, unsigned ttl);
+bool ltree_add_rec(ltree_node_zroot_t* zroot, const uint8_t* dname, uint8_t* rdata, const unsigned rrtype, unsigned ttl);
 F_WUNUSED F_NONNULL
-bool ltree_add_rec_dynaddr(ltree_node_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min);
+bool ltree_add_rec_dynaddr(ltree_node_zroot_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min);
 F_WUNUSED F_NONNULL
-bool ltree_add_rec_dync(ltree_node_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min);
+bool ltree_add_rec_dync(ltree_node_zroot_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min);
 
 // Load zonefiles (called from main, invokes parser)
 void ltree_load_zones(void);
@@ -283,17 +295,17 @@ static unsigned len_from_name(const uint8_t* name)
 F_NONNULL F_PURE F_UNUSED F_HOT
 static ltree_node_t* ltree_node_find_child(const ltree_node_t* node, const uint8_t* child_label)
 {
-    if (node->child_table) {
-        gdnsd_assume(node->ccount);
-        const uint32_t mask = count2mask_lf80(node->ccount);
+    if (node->c.child_table) {
+        gdnsd_assume(node->c.ccount);
+        const uint32_t mask = count2mask_lf80(node->c.ccount);
         const uintptr_t kh = ltree_hash_label(child_label);
         uint32_t probe_dist = 0;
         do {
             const uint32_t slot = ((uint32_t)kh + probe_dist) & mask;
-            const ltree_hslot* s = &node->child_table[slot];
+            const ltree_hslot* s = &node->c.child_table[slot];
             if (!s->node || ((slot - s->hash) & mask) < probe_dist)
                 break;
-            if (s->hash == kh && likely(!label_cmp(&s->node->dname[1], child_label)))
+            if (s->hash == kh && likely(!label_cmp(&s->node->c.dname[1], child_label)))
                 return s->node;
             probe_dist++;
         } while (1);

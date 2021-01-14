@@ -29,6 +29,6 @@
 void zsrc_rfc1035_init(void);
 
 F_NONNULL
-bool zsrc_rfc1035_load_zones(ltree_node_t* new_root_tree);
+ltree_node_t* zsrc_rfc1035_load_zones(void);
 
 #endif // GDNSD_ZSRC_RFC1035_H

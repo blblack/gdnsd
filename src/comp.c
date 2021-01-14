@@ -308,11 +308,11 @@ void comp_do_soa(ltree_rrset_raw_t* rrset, const uint8_t* node_dname)
 }
 
 F_NONNULL
-static ltree_dname_status_t ltree_search_name_zone(const uint8_t* name, unsigned name_len, ltree_node_t* zroot, ltree_node_t** node_out)
+static ltree_dname_status_t ltree_search_name_zone(const uint8_t* name, unsigned name_len, ltree_node_zroot_t* zroot, ltree_node_t** node_out)
 {
-    gdnsd_assume(zroot->dname);
+    gdnsd_assume(zroot->c.dname);
 
-    const uint8_t* zone_name = zroot->dname;
+    const uint8_t* zone_name = zroot->c.dname;
     const unsigned zone_name_len = *zone_name++;
 
     // Easiest out: can't be in the zone if our length is shorter than the zone name length
@@ -337,13 +337,13 @@ static ltree_dname_status_t ltree_search_name_zone(const uint8_t* name, unsigned
     }
 
     ltree_dname_status_t rval = DNAME_AUTH;
-    ltree_node_t* cur_node = zroot;
+    ltree_node_t* cur_node = (ltree_node_t*)zroot;
     const uint8_t* cur_label = &name_treepath[zone_check_offset];
     unsigned cur_label_len = *cur_label;
     while (cur_node && cur_label_len) {
         ltree_node_t* next = ltree_node_find_child(cur_node, cur_label);
         // Check for delegation cut and switch status
-        if (next && next->zone_cut)
+        if (next && next->c.zone_cut_deleg)
             rval = DNAME_DELEG;
         // Note we don't check for a wildcard match here, because this is NS
         // hostnames and we don't choose to support wildcard delegation
@@ -374,7 +374,7 @@ static void ns_add_glue_data(ltree_rrset_raw_t* glue_fake, const ltree_rrset_raw
 }
 
 F_WUNUSED F_NONNULL
-static bool ns_add_glue(ltree_rrset_raw_t* glue_fake, ltree_node_t* zroot, const uint8_t* node_dname, const uint8_t* name, unsigned name_len, unsigned glue_name_offset, const bool in_deleg)
+static bool ns_add_glue(ltree_rrset_raw_t* glue_fake, ltree_node_zroot_t* zroot, const uint8_t* node_dname, const uint8_t* name, unsigned name_len, unsigned glue_name_offset, const bool in_deleg)
 {
     ltree_node_t* ns_target = NULL;
     ltree_dname_status_t target_status = ltree_search_name_zone(name, name_len, zroot, &ns_target);
@@ -387,7 +387,7 @@ static bool ns_add_glue(ltree_rrset_raw_t* glue_fake, ltree_node_t* zroot, const
     ltree_rrset_raw_t* target_aaaa = NULL;
 
     if (ns_target) {
-        ltree_rrset_t* target_rrset = ns_target->rrsets;
+        ltree_rrset_t* target_rrset = ns_target->c.rrsets;
         while (target_rrset) {
             if (target_rrset->gen.type == DNS_TYPE_A)
                 target_a = &target_rrset->raw;
@@ -422,7 +422,7 @@ static bool ns_add_glue(ltree_rrset_raw_t* glue_fake, ltree_node_t* zroot, const
     return false;
 }
 
-bool comp_do_ns(ltree_rrset_raw_t* rrset, ltree_node_t* zroot, const uint8_t* node_dname, const bool in_deleg)
+bool comp_do_ns(ltree_rrset_raw_t* rrset, ltree_node_zroot_t* zroot, const uint8_t* node_dname, const bool in_deleg)
 {
     gdnsd_assert(rrset->gen.type == DNS_TYPE_NS);
     gdnsd_assert(dname_status(node_dname) == DNAME_VALID);
