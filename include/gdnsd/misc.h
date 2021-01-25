@@ -142,4 +142,16 @@ void gdnsd_thread_reduce_prio(void);
 // daemons, and the extmon helper process).
 void gdnsd_reset_signals_for_exec(void);
 
+// Quick rough ~1s timestamps, truncated from a fast monotonic source
+time_t gdnsd_qtime_s(void);
+
+// Token bucket filter:
+struct gdnsd_tbf;
+typedef struct gdnsd_tbf gdnsd_tbf_t;
+F_RETNN
+gdnsd_tbf_t* gdnsd_tbf_new(const unsigned rate_per_ms);
+F_NONNULL
+bool gdnsd_tbf_limit_exceeded(gdnsd_tbf_t* tbf, const unsigned tokens);
+void gdnsd_tbf_reset(gdnsd_tbf_t* tbf);
+
 #endif // GDNSD_MISC_H

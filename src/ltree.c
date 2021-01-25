@@ -79,6 +79,9 @@ static uint8_t* dname_from_name(const uint8_t* name, unsigned name_len)
     return rv;
 }
 
+// Returns NULL if node is maxed out on children, or if an explicit nxdomain
+// node is found.  In these cases this function has already emitted a log_err()
+// about it, and it's up to the caller whether to fatal out.
 F_NONNULLX(1, 2)
 static ltree_node_t* ltree_node_find_or_add_child(ltree_node_t* node, const uint8_t* child_name, ltree_node_t* ins, unsigned child_name_len)
 {
@@ -94,8 +97,13 @@ static ltree_node_t* ltree_node_find_or_add_child(ltree_node_t* node, const uint
             if (!s->node || ((slot - s->hash) & mask) < probe_dist)
                 break;
             gdnsd_assume(s->node->c.dname);
-            if (s->hash == kh && likely(!label_cmp(&s->node->c.dname[1], child_name)))
+            if (s->hash == kh && likely(!label_cmp(&s->node->c.dname[1], child_name))) {
+                if (unlikely(s->node->c.explicit_nxd)) {
+                    log_err("Cannot add data at '%s' beneath an explicit NXDOMAIN", logf_name(child_name));
+                    return NULL;
+                }
                 return s->node;
+            }
             probe_dist++;
         } while (1);
     }
@@ -256,6 +264,22 @@ bool ltree_add_rec(ltree_node_zroot_t* zroot, const uint8_t* dname, uint8_t* rda
     return false;
 }
 
+bool ltree_add_rec_enxd(ltree_node_zroot_t* zroot, const uint8_t* dname)
+{
+    if (zroot->c.dname[0] == dname[0])
+        log_zfatal("Cannot set explicit NXDOMAIN at the root of zone %s", logf_dname(dname));
+
+    ltree_node_t* node = ltree_zone_find_or_add_dname(zroot, dname);
+    if (unlikely(!node))
+        return true; // find_or_add already logged about it
+    if (node->c.rrsets)
+        log_zfatal("Explicit NXDOMAIN at '%s' cannot co-exist with other records", logf_dname(dname));
+    if (node->c.ccount)
+        log_zfatal("Explicit NXDOMAIN at '%s' cannot co-exist with child nodes", logf_dname(dname));
+    node->c.explicit_nxd = true;
+    return false;
+}
+
 bool ltree_add_rec_dynaddr(ltree_node_zroot_t* zroot, const uint8_t* dname, const char* rhs, unsigned ttl_max, unsigned ttl_min)
 {
     if (ttl_min < gcfg->min_ttl) {
@@ -378,6 +402,10 @@ static bool check_deleg(const ltree_node_t* node)
 {
     if (dname_iswild(node->c.dname))
         log_zfatal("Domainname '%s': Wildcards not allowed for delegation/glue data",
+                   logf_dname(node->c.dname));
+
+    if (node->c.explicit_nxd)
+        log_zfatal("Domainname '%s': Explicit NXDOMAIN not allowed in delegations",
                    logf_dname(node->c.dname));
 
     const ltree_rrset_t* rrset = node->c.rrsets;
@@ -510,6 +538,19 @@ static bool postproc_static_rrset(const ltree_node_t* node, ltree_rrset_raw_t* r
     return false;
 }
 
+F_NONNULL
+static void make_enxd(ltree_node_t* node, const ltree_node_zroot_t* zroot)
+{
+    gdnsd_assume(zroot->sec);
+    gdnsd_assert(!node->c.rrsets);
+    ltree_rrset_enxd_t* enxd = xcalloc(sizeof(*enxd));
+    node->c.rrsets = (ltree_rrset_t*)enxd;
+    enxd->data = xmalloc(MAX_RESPONSE_BUF);
+    enxd->data_len = dnssec_synth_nxd(zroot->sec, &node->c.dname[1], enxd->data, node->c.dname[0]);
+    enxd->data = xrealloc(enxd->data, enxd->data_len);
+    enxd->gen.count = dnssec_num_zsks(zroot->sec) + 1U; // 1x NSEC + num_zsks RRSIGS
+}
+
 F_WUNUSED F_NONNULL
 static bool ltree_postproc_node(ltree_node_t* node, ltree_node_zroot_t* zroot, const bool in_deleg)
 {
@@ -525,6 +566,12 @@ static bool ltree_postproc_node(ltree_node_t* node, ltree_node_zroot_t* zroot, c
     // labels can exist.
     if (in_deleg && check_deleg(node))
         return true;
+
+    // Explicit NXDOMAINs get here with no data defined; this pre-synthesizes their response
+    if (node->c.explicit_nxd && zroot->sec) {
+        make_enxd(node, zroot);
+        return false;
+    }
 
     // NSEC all the nodes in a signed zone, other than glue space inside deleg
     // (the function itself also excludes DS deleg nodes, because we never use the NSEC there)
@@ -711,7 +758,7 @@ static void ltree_postproc_recurse_phase2(ltree_node_t* node, ltree_node_zroot_t
             srch = next;
         } while (srch);
 
-        // Then, set up the remaining 1-2 RRs in a determinstic order.  NS is
+        // Then, set up the remaining 1-2 RRs in a deterministic order.  NS is
         // always first, and if it's a signed zone, the DS (secure deleg) or
         // NSEC (insecure deleg) is second.
         gdnsd_assume(ns);
@@ -756,9 +803,20 @@ bool ltree_postproc_zone(ltree_node_zroot_t* zroot, const uint32_t tstamp)
 void ltree_destroy(ltree_node_t* node)
 {
     ltree_rrset_t* rrset = node->c.rrsets;
+
+    if (node->c.explicit_nxd) {
+        gdnsd_assume(rrset);
+        gdnsd_assert(!rrset->gen.next);
+        gdnsd_assert(!rrset->gen.type);
+        ltree_rrset_enxd_t* e = &rrset->enxd;
+        free(e->data);
+        free(e);
+        rrset = NULL;
+    }
+
     while (rrset) {
         ltree_rrset_t* next = rrset->gen.next;
-        // Everything is in raw form, except !count dynac entries
+        // Everything here with a count is in raw form
         if (rrset->gen.count) {
             ltree_rrset_raw_t* r = &rrset->raw;
             if (!r->data_len && r->scan_rdata) {

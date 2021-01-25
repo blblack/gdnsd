@@ -91,6 +91,15 @@ typedef struct {
     stats_t edns_cookie_ok;      // Valid server cookie issued by us
     stats_t edns_cookie_init;    // No server cookie sent at all
     stats_t edns_cookie_bad;     // Invalid server cookie (e.g. expired)
+
+    // DNSSEC NXDC stats:
+    stats_t dnssec_nxd_hit;   // cache hit (previously synthed+cached)
+    stats_t dnssec_nxd_synth; // cache miss -> rate ok -> synth+cache+respond
+    // nxd_signs mirrors nxd_synth if all signed zones always have exactly one
+    // ZSK, but will be larger otherwise, and in mixed/variable ZSK scenarios
+    // this will more-closely correlate with CPU impact of crypto ops
+    stats_t dnssec_nxd_signs;
+    stats_t dnssec_nxd_drop;  // cache miss -> rate exceeded -> drop
 } dnspacket_stats_t;
 
 // Per-connection DSO state-tracking between dnsio_tcp (TCP) + dnspacket at the
@@ -100,7 +109,7 @@ typedef struct {
     // request was a DSO KeepAlive, so that dnsio_tcp knows not to bump the
     // server-side inactivity timer like it would for any other request.
     bool last_was_ka;
-    // estab: False by default at thread start, PDQ sets permanently to true if
+    // estab: False by default at conn start, PDQ sets permanently to true if
     // DSO is established by client DSO KeepAlive reception, which changes some
     // code behaviors on both sides.
     bool estab;

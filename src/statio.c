@@ -72,7 +72,11 @@ typedef enum {
     TCP_DSO_PROTOERR     = 32,
     TCP_DSO_TYPENI       = 33,
     TCP_ACCEPTFAIL       = 34,
-    SLOT_COUNT           = 35,
+    DNSSEC_NXD_HIT       = 35,
+    DNSSEC_NXD_SYNTH     = 36,
+    DNSSEC_NXD_SIGNS     = 37,
+    DNSSEC_NXD_DROP      = 38,
+    SLOT_COUNT           = 39,
 } slot_t;
 
 static const char json_fixed[] =
@@ -93,7 +97,11 @@ static const char json_fixed[] =
     "\t\t\"edns_cookie_formerr\": %" PRISTATS ",\n"
     "\t\t\"edns_cookie_ok\": %" PRISTATS ",\n"
     "\t\t\"edns_cookie_init\": %" PRISTATS ",\n"
-    "\t\t\"edns_cookie_bad\": %" PRISTATS "\n"
+    "\t\t\"edns_cookie_bad\": %" PRISTATS ",\n"
+    "\t\t\"dnssec_nxd_hit\": %" PRISTATS ",\n"
+    "\t\t\"dnssec_nxd_synth\": %" PRISTATS ",\n"
+    "\t\t\"dnssec_nxd_signs\": %" PRISTATS ",\n"
+    "\t\t\"dnssec_nxd_drop\": %" PRISTATS "\n"
     "\t},\n"
     "\t\"udp\": {\n"
     "\t\t\"reqs\": %" PRISTATS ",\n"
@@ -189,6 +197,10 @@ static void accumulate_statio(unsigned threadnum)
     statio[DNS_EDNS_COOKIE_OK]   += stats_get(&this_stats->edns_cookie_ok);
     statio[DNS_EDNS_COOKIE_INIT] += stats_get(&this_stats->edns_cookie_init);
     statio[DNS_EDNS_COOKIE_BAD]  += stats_get(&this_stats->edns_cookie_bad);
+    statio[DNSSEC_NXD_HIT]       += stats_get(&this_stats->dnssec_nxd_hit);
+    statio[DNSSEC_NXD_SYNTH]     += stats_get(&this_stats->dnssec_nxd_synth);
+    statio[DNSSEC_NXD_SIGNS]     += stats_get(&this_stats->dnssec_nxd_signs);
+    statio[DNSSEC_NXD_DROP]      += stats_get(&this_stats->dnssec_nxd_drop);
 }
 
 static void populate_statio(void)
@@ -204,7 +216,7 @@ char* statio_get_json(time_t nowish, unsigned* len)
     // fill json output buffer
     uint64_t uptime64 = (uint64_t)nowish - (uint64_t)start_time;
     char* buf = xmalloc(json_buffer_max);
-    int snp_rv = snprintf(buf, json_buffer_max, json_fixed, uptime64, statio[DNS_NOERROR], statio[DNS_REFUSED], statio[DNS_NXDOMAIN], statio[DNS_NOTIMP], statio[DNS_BADVERS], statio[DNS_FORMERR], statio[DNS_DROPPED], statio[DNS_V6], statio[DNS_EDNS], statio[DNS_EDNS_CLIENTSUB], statio[DNS_EDNS_DO], statio[DNS_EDNS_COOKIE_ERR], statio[DNS_EDNS_COOKIE_OK], statio[DNS_EDNS_COOKIE_INIT], statio[DNS_EDNS_COOKIE_BAD], statio[UDP_REQS], statio[UDP_RECVFAIL], statio[UDP_SENDFAIL], statio[UDP_TC], statio[UDP_EDNS_BIG], statio[UDP_EDNS_TC], statio[TCP_REQS], statio[TCP_RECVFAIL], statio[TCP_SENDFAIL], statio[TCP_CONNS], statio[TCP_CLOSE_C], statio[TCP_CLOSE_S_OK], statio[TCP_CLOSE_S_ERR], statio[TCP_CLOSE_S_KILL], statio[TCP_PROXY], statio[TCP_PROXY_FAIL], statio[TCP_DSO_ESTAB], statio[TCP_DSO_PROTOERR], statio[TCP_DSO_TYPENI], statio[TCP_ACCEPTFAIL]);
+    int snp_rv = snprintf(buf, json_buffer_max, json_fixed, uptime64, statio[DNS_NOERROR], statio[DNS_REFUSED], statio[DNS_NXDOMAIN], statio[DNS_NOTIMP], statio[DNS_BADVERS], statio[DNS_FORMERR], statio[DNS_DROPPED], statio[DNS_V6], statio[DNS_EDNS], statio[DNS_EDNS_CLIENTSUB], statio[DNS_EDNS_DO], statio[DNS_EDNS_COOKIE_ERR], statio[DNS_EDNS_COOKIE_OK], statio[DNS_EDNS_COOKIE_INIT], statio[DNS_EDNS_COOKIE_BAD], statio[DNSSEC_NXD_HIT], statio[DNSSEC_NXD_SYNTH], statio[DNSSEC_NXD_SIGNS], statio[DNSSEC_NXD_DROP], statio[UDP_REQS], statio[UDP_RECVFAIL], statio[UDP_SENDFAIL], statio[UDP_TC], statio[UDP_EDNS_BIG], statio[UDP_EDNS_TC], statio[TCP_REQS], statio[TCP_RECVFAIL], statio[TCP_SENDFAIL], statio[TCP_CONNS], statio[TCP_CLOSE_C], statio[TCP_CLOSE_S_OK], statio[TCP_CLOSE_S_ERR], statio[TCP_CLOSE_S_KILL], statio[TCP_PROXY], statio[TCP_PROXY_FAIL], statio[TCP_DSO_ESTAB], statio[TCP_DSO_PROTOERR], statio[TCP_DSO_TYPENI], statio[TCP_ACCEPTFAIL]);
     gdnsd_assume(snp_rv > 0 && (unsigned)snp_rv < json_buffer_max);
     *len = (unsigned)snp_rv;
     return buf;

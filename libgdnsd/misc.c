@@ -320,3 +320,96 @@ void gdnsd_reset_signals_for_exec(void)
     if (pthread_sigmask(SIG_SETMASK, &no_sigs, NULL))
         log_fatal("pthread_sigmask() failed");
 }
+
+// gdnsd_qtime_[m]s: Get a rough timestamp in milliseconds or seconds, with as
+// little overhead as possible, suitable for per-thread ratelimiters.  We
+// expect these COARSE/FAST clocks to commonly have resolutions in the ballpark
+// of ~1ms to ~10ms.  We could check this on startup I guess, but it hardly
+// seems worth it.
+
+#if defined CLOCK_MONOTONIC_COARSE
+#  define COARSE_MONO CLOCK_MONOTONIC_COARSE
+#elif defined CLOCK_MONOTONIC_FAST
+#  define COARSE_MONO CLOCK_MONOTONIC_FAST
+#else
+#  define COARSE_MONO CLOCK_MONOTONIC
+#endif
+
+#define MS_PER_S 1000U
+#define NS_PER_MS 1000000U
+
+// This one is exported for log.c's neterr_rate_ok()
+time_t gdnsd_qtime_s(void)
+{
+    struct timespec tp;
+    if (unlikely(clock_gettime(COARSE_MONO, &tp)))
+        log_fatal("clock_gettime() failed: %s, bt: %s", logf_errno(), logf_bt());
+    return tp.tv_sec;
+}
+
+// This one's for tbf below
+static uint64_t gdnsd_qtime_ms(void)
+{
+    struct timespec tp;
+    if (unlikely(clock_gettime(COARSE_MONO, &tp)))
+        log_fatal("clock_gettime() failed: %s, bt: %s", logf_errno(), logf_bt());
+    uint64_t out_ms = (uint64_t)tp.tv_sec * (uint64_t)MS_PER_S;
+    out_ms += (uint64_t)tp.tv_nsec / NS_PER_MS;
+    return out_ms;
+}
+
+// The total capacity of the token bucket, for bursting, is set to:
+// rate_per_ms * TBF_BURST_FACTOR
+// This ensures a reasonable degree of smoothness, so that TBF-allowed events
+// aren't harming other queries' latency to an unreasonable degree.
+// We can't get much smaller than about 10 on this in practice without
+// switching to higher-resolution clocks.
+#define TBF_BURST_FACTOR 10
+
+struct gdnsd_tbf {
+    uint64_t last_ms; // dynamic
+    unsigned tokens; // dynamic
+    unsigned rate_per_ms; // config
+    unsigned max_tokens; // derived config: rate_per_ms*TBF_BURST_FACTOR
+};
+
+gdnsd_tbf_t* gdnsd_tbf_new(const unsigned rate_per_ms)
+{
+    gdnsd_assert(rate_per_ms);
+    gdnsd_assert(rate_per_ms <= 1000U);
+    gdnsd_tbf_t* tbf = xmalloc(sizeof(*tbf));
+    tbf->last_ms = gdnsd_qtime_ms();
+    tbf->rate_per_ms = rate_per_ms;
+    tbf->max_tokens = rate_per_ms * TBF_BURST_FACTOR;
+    tbf->tokens = tbf->max_tokens;
+    return tbf;
+}
+
+bool gdnsd_tbf_limit_exceeded(gdnsd_tbf_t* tbf, const unsigned tokens)
+{
+    uint64_t now_ms = gdnsd_qtime_ms();
+    if (now_ms > tbf->last_ms) {
+        uint64_t diff = now_ms - tbf->last_ms;
+        tbf->last_ms = now_ms;
+        if (diff >= TBF_BURST_FACTOR) {
+            tbf->tokens = tbf->max_tokens;
+        } else {
+            unsigned to_add = (unsigned)diff * tbf->rate_per_ms;
+            tbf->tokens += to_add;
+            if (tbf->tokens > tbf->max_tokens)
+                tbf->tokens = tbf->max_tokens;
+        }
+    }
+
+    if (tbf->tokens >= tokens) {
+        tbf->tokens -= tokens;
+        return false;
+    }
+
+    return true;
+}
+
+void gdnsd_tbf_reset(gdnsd_tbf_t* tbf)
+{
+    tbf->tokens = tbf->max_tokens;
+}
