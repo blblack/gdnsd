@@ -872,6 +872,7 @@ typedef struct {
     const ltree_node_t* auth;
     unsigned comp_fixup_wild;
     unsigned comp_fixup_auth;
+    uint64_t gen;
 } search_result_t;
 
 F_NONNULL
@@ -886,7 +887,9 @@ static ltree_dname_status_t search_ltree_for_name(const uint8_t* name, search_re
     gdnsd_assume(name_len); // legit names are always length 1+
 
     ltree_dname_status_t rval = DNAME_NOAUTH;
-    ltree_node_t* cur_node = grcu_dereference(root_tree);
+    ltree_root_t* cur_lroot = grcu_dereference(lroot);
+    res->gen = cur_lroot->gen;
+    ltree_node_t* cur_node = cur_lroot->root;
     const uint8_t* cur_label = treepath;
     unsigned cur_label_len = *cur_label;
     unsigned name_remaining_depth = name_len - 1U;
