@@ -29,7 +29,7 @@
 #include <sodium.h>
 
 /***************
- * This is the Public-Domain JKISS32 PRNG implementation which I initially got
+ * This is the Public-Domain JKISS PRNG implementation which I initially got
  *   from David Jones' RNG paper here:
  *   http://www.cs.ucl.ac.uk/staff/d.jones/GoodPracticeRNG.pdf
  *   ... and then incorporated some usage/optimization hints from
@@ -45,7 +45,6 @@ typedef struct gdnsd_rstate32_t {
     uint32_t x;
     uint32_t y;
     uint32_t z;
-    uint32_t w;
     uint32_t c;
 } gdnsd_rstate32_t;
 
@@ -54,27 +53,22 @@ static void gdnsd_rand32_init(gdnsd_rstate32_t* st)
 {
     do {
         randombytes_buf(st, sizeof(*st));
-    } while (!st->y); // y==0 is bad for jkiss32
+    } while (!st->y || !st->z || !st->c || st->c >= 4294584393U);
 }
 
 F_NONNULL F_UNUSED
 static uint32_t gdnsd_rand32_get(gdnsd_rstate32_t* rs)
 {
+    rs->x = 314527869U * rs->x + 1234567U;
     uint32_t y = rs->y;
     y ^= y << 5;
     y ^= y >> 7;
     y ^= y << 22;
     rs->y = y;
-
-    // Note local mods to how t is handled (results are the same)
-    uint32_t t = rs->z + rs->w + rs->c;
-    rs->z = rs->w;
-    rs->c = (t & 1U << 31) >> 31;
-    rs->w = t & 2147483647;
-
-    rs->x += 1411392427;
-
-    return rs->x + y + rs->w;
+    uint64_t t = 4294584393ULL * rs->z + rs->c;
+    rs->c = t >> 32;
+    rs->z = t;
+    return rs->x + rs->y + rs->z;
 }
 
 // Unbiased while avoiding div/mod ops most of the time for smaller bounds, and
