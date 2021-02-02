@@ -7,7 +7,7 @@ AM_CPPFLAGS = -I$(srcdir)/include
 
 # Subdirectories to recurse into
 #  ("." first so testsuite stuff always after main stuff)
-SUBDIRS = . t
+SUBDIRS = . tpy t
 
 # Alias "make test" -> "make check"
 .PHONY: test

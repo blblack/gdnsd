@@ -308,6 +308,28 @@ AC_ARG_WITH([testport],[AS_HELP_STRING([--with-testport=N],
 TESTPORT_START=$with_testport
 AC_SUBST([TESTPORT_START])
 
+# Non-fatal, we should allow building without testing, and also building
+# without testing DNSSEC, if needed, for now:
+
+HAVE_TSUITE_PYTHON=1
+HAVE_TSUITE_PYTHON_DNSSEC=1
+AM_PATH_PYTHON([3.6],[],[HAVE_TSUITE_PYTHON=0; PYTHON=""])
+PYCHECK_MODVER([pytest],[6.0],[],[HAVE_TSUITE_PYTHON=0])
+PYCHECK_MODVER([dns],[2.0.0],[],[HAVE_TSUITE_PYTHON=0])
+PYCHECK_MODVER([cryptography],[2.6],[],[HAVE_TSUITE_PYTHON_DNSSEC=0])
+PYCHECK([for python crypto Ed25519 support (req OpenSSL-1.1.1b+)],
+  ['from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey; Ed25519PrivateKey.generate()'],[],[HAVE_TSUITE_PYTHON_DNSSEC=0])
+if test $HAVE_TSUITE_PYTHON = 0; then
+  HAVE_TSUITE_PYTHON_DNSSEC=0
+  AC_MSG_WARN([[Cannot "make check" without Python 3.6+ and modules: pytest >= 1.0, dns >= 2.0.0]])
+else
+  if test $HAVE_TSUITE_PYTHON_DNSSEC = 0; then
+    AC_MSG_WARN([[Cannot run DNSSEC tests without python cryptography >= 2.6 built against OpenSSL-1.1.1b+]])
+  fi
+fi
+AC_SUBST([HAVE_TSUITE_PYTHON])
+AC_SUBST([HAVE_TSUITE_PYTHON_DNSSEC])
+
 # Allow specifying an alternate rundir (default $localstatedir/run) for distros
 #   that prefer e.g. /run to /var/run
 rundir_fail="The --with-rundir= option must specify an absolute pathname if used";
@@ -415,6 +437,7 @@ fi
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([
   Makefile
+  tpy/Makefile
   t/Makefile
   t/libtap/Makefile
   t/libgdmaps/Makefile
