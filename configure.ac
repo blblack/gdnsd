@@ -9,15 +9,22 @@ AM_SILENT_RULES([yes])
 AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
 m4_version_prereq([2.70], [], [AC_PROG_CC_STDC])
-AC_MSG_CHECKING([For C11 support in the C compiler])
+AC_MSG_CHECKING([For C11 and stdatomic lock-free pointer support in the C compiler])
 AC_COMPILE_IFELSE(
     [AC_LANG_PROGRAM([[
         #include <assert.h>
+        #include <stdatomic.h>
+        #include <inttypes.h>
+        #include <stddef.h>
         static_assert(__STDC_VERSION__ >= 201112L, "C11");
+        static_assert(ATOMIC_POINTER_LOCK_FREE, "has lock-free pointer");
+        atomic_uintptr_t v = 0;
+        _Atomic uintptr_t v2 = 0;
+        _Atomic(char*) p = NULL;
     ]],[])],
     [AC_MSG_RESULT([yes])],
     [AC_MSG_RESULT([no])
-     AC_MSG_ERROR([C11 Compiler is required])]
+     AC_MSG_ERROR([C11 Compiler with stdatomic lock-free pointer support is required])]
 )
 
 # POSIX threads stuff
