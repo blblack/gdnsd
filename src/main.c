@@ -315,52 +315,44 @@ static void wait_io_threads_stop(const socks_cfg_t* socks_cfg)
 
 static void do_tak1(const csc_t* csc)
 {
-    // During some release >= 3.1.0, we can remove 2.99.x-beta compat here by
-    // assuming all daemons with listening control sockets have a major >= 3
-    // and support TAK1.
-    if (csc_server_version_gte(csc, 2, 99, 200)) {
-        csbuf_t req;
-        csbuf_t resp;
-        memset(&req, 0, sizeof(req));
-        req.key = REQ_TAK1;
-        req.d = (uint32_t)getpid();
-        if (csc_txn(csc, &req, &resp) != CSC_TXN_OK)
-            log_fatal("REPLACE[new daemon]: takeover phase 1 notification attempt failed (possibly lost race against another)");
-    }
+    csbuf_t req;
+    csbuf_t resp;
+    memset(&req, 0, sizeof(req));
+    req.key = REQ_TAK1;
+    req.d = (uint32_t)getpid();
+    if (csc_txn(csc, &req, &resp) != CSC_TXN_OK)
+        log_fatal("REPLACE[new daemon]: takeover phase 1 notification attempt failed (possibly lost race against another)");
 }
 
 static void do_tak2(struct ev_loop* loop, const csc_t* csc)
 {
-    // As above for compat
-    if (csc_server_version_gte(csc, 2, 99, 200)) {
-        uint8_t* chal_data = NULL;
-        csbuf_t req;
-        csbuf_t resp;
-        memset(&req, 0, sizeof(req));
-        req.key = REQ_TAK2;
-        req.d = (uint32_t)getpid();
-        if (csc_txn_getdata(csc, &req, &resp, (char**)&chal_data) != CSC_TXN_OK)
-            log_fatal("REPLACE[new daemon]: takeover phase 2 notification attempt failed");
-        const unsigned chal_count = csbuf_get_v(&resp);
-        const unsigned chal_dlen = resp.d;
-        log_devdebug("TAK2 challenge handoff got count %u dlen %u", chal_count, chal_dlen);
-        unsigned offset = 0;
-        for (unsigned i = 0; i < chal_count; i++) {
-            if (offset + 5U > chal_dlen)
-                log_fatal("REPLACE[new daemon]: corrupt challenge data size");
-            unsigned cset_dlen = gdnsd_get_una16(&chal_data[offset]);
-            offset += 2U;
-            unsigned ttl_remain = gdnsd_get_una16(&chal_data[offset]);
-            offset += 2U;
-            unsigned cset_count = chal_data[offset++];
-            if (offset + cset_dlen > chal_dlen)
-                log_fatal("REPLACE[new daemon]: corrupt challenge data size");
-            if (cset_create(loop, ttl_remain, cset_count, cset_dlen, &chal_data[offset]))
-                log_fatal("REPLACE[new daemon]: illegal challenge handoff data");
-            offset += cset_dlen;
-        }
-        free(chal_data);
+    uint8_t* chal_data = NULL;
+    csbuf_t req;
+    csbuf_t resp;
+    memset(&req, 0, sizeof(req));
+    req.key = REQ_TAK2;
+    req.d = (uint32_t)getpid();
+    if (csc_txn_getdata(csc, &req, &resp, (char**)&chal_data) != CSC_TXN_OK)
+        log_fatal("REPLACE[new daemon]: takeover phase 2 notification attempt failed");
+    const unsigned chal_count = csbuf_get_v(&resp);
+    const unsigned chal_dlen = resp.d;
+    log_devdebug("TAK2 challenge handoff got count %u dlen %u", chal_count, chal_dlen);
+    unsigned offset = 0;
+    for (unsigned i = 0; i < chal_count; i++) {
+        if (offset + 5U > chal_dlen)
+            log_fatal("REPLACE[new daemon]: corrupt challenge data size");
+        unsigned cset_dlen = gdnsd_get_una16(&chal_data[offset]);
+        offset += 2U;
+        unsigned ttl_remain = gdnsd_get_una16(&chal_data[offset]);
+        offset += 2U;
+        unsigned cset_count = chal_data[offset++];
+        if (offset + cset_dlen > chal_dlen)
+            log_fatal("REPLACE[new daemon]: corrupt challenge data size");
+        if (cset_create(loop, ttl_remain, cset_count, cset_dlen, &chal_data[offset]))
+            log_fatal("REPLACE[new daemon]: illegal challenge handoff data");
+        offset += cset_dlen;
     }
+    free(chal_data);
 }
 
 typedef enum {
