@@ -27,6 +27,7 @@
 
 #include <gdnsd/log.h>
 #include <gdnsd/misc.h>
+#include <gdnsd/grcu.h>
 
 #include <netdb.h>
 #include <unistd.h>
@@ -46,8 +47,6 @@
 #include <signal.h>
 #include <poll.h>
 #include <stdatomic.h>
-
-#include <urcu-qsbr.h>
 
 #ifndef SOL_IPV6
 #define SOL_IPV6 IPPROTO_IPV6
@@ -409,16 +408,16 @@ static void mainloop(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* stats, c
             memset(cmsg_buf.cbuf, 0, sizeof(cmsg_buf));
         }
 
-        rcu_quiescent_state();
+        grcu_quiescent_state();
         const ssize_t recvmsg_rv = recvmsg(fd, &msg_hdr, 0);
         if (unlikely(recvmsg_rv < 0)) {
             if (errno == EINTR)
                 continue;
             if (ERRNO_WOULDBLOCK) {
-                rcu_thread_offline();
+                grcu_thread_offline();
                 if (slow_idle_poll(fd))
                     break;
-                rcu_thread_online();
+                grcu_thread_online();
                 continue;
             }
         }
@@ -548,16 +547,16 @@ static void mainloop_mmsg(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* sta
             }
         }
 
-        rcu_quiescent_state();
+        grcu_quiescent_state();
         const int mmsg_rv = recvmmsg(fd, dgrams, MMSG_WIDTH, MSG_WAITFORONE, NULL);
         if (unlikely(mmsg_rv < 0)) {
             if (errno == EINTR)
                 continue;
             if (ERRNO_WOULDBLOCK) {
-                rcu_thread_offline();
+                grcu_thread_offline();
                 if (slow_idle_poll(fd))
                     break;
-                rcu_thread_online();
+                grcu_thread_online();
                 continue;
             }
         }
@@ -595,7 +594,7 @@ void* dnsio_udp_start(void* thread_asvoid)
     if (pthread_sigmask(SIG_SETMASK, &sigmask_notusr2, NULL))
         log_fatal("pthread_sigmask() failed");
 
-    rcu_register_thread();
+    grcu_register_thread();
 
     const bool use_cmsg = addrconf->addr.sa.sa_family == AF_INET6
                           ? true
@@ -608,7 +607,7 @@ void* dnsio_udp_start(void* thread_asvoid)
 #endif
         mainloop(t->sock, pctx, stats, use_cmsg);
 
-    rcu_unregister_thread();
+    grcu_unregister_thread();
     dnspacket_ctx_cleanup(pctx);
     return NULL;
 }

@@ -30,6 +30,7 @@
 #include <gdnsd/log.h>
 #include <gdnsd/misc.h>
 #include <gdnsd/net.h>
+#include <gdnsd/grcu.h>
 
 #include <netdb.h>
 #include <unistd.h>
@@ -45,7 +46,6 @@
 #include <stdalign.h>
 
 #include <ev.h>
-#include <urcu-qsbr.h>
 
 // libev prio map:
 // +2: thread async stop watcher (highest prio)
@@ -114,7 +114,7 @@ typedef struct {
     size_t check_mode_conns; // conns using check_watcher at present
     unsigned churn_count; // number of conn_t cached in "churn"
     thr_state_t st;
-    bool rcu_is_online;
+    bool grcu_is_online;
 } thread_t;
 
 // per-connection state
@@ -681,11 +681,11 @@ static void conn_respond(thread_t* thr, conn_t* conn, const size_t req_size)
     conn->readbuf_bytes -= req_bufsize;
 
     // Bring RCU online (or quiesce) and generate an answer
-    if (!thr->rcu_is_online) {
-        thr->rcu_is_online = true;
-        rcu_thread_online();
+    if (!thr->grcu_is_online) {
+        thr->grcu_is_online = true;
+        grcu_thread_online();
     } else {
-        rcu_quiescent_state();
+        grcu_quiescent_state();
     }
 
     conn->dso.last_was_ka = false;
@@ -941,16 +941,16 @@ static void prep_handler(struct ev_loop* loop V_UNUSED, ev_prepare* w V_UNUSED, 
             ev_idle_start(thr->loop, iw);
             ev_unref(thr->loop);
         }
-        if (thr->rcu_is_online)
-            rcu_quiescent_state();
+        if (thr->grcu_is_online)
+            grcu_quiescent_state();
     } else {
         if (ev_is_active(iw)) {
             ev_ref(thr->loop);
             ev_idle_stop(thr->loop, iw);
         }
-        if (thr->rcu_is_online) {
-            thr->rcu_is_online = false;
-            rcu_thread_offline();
+        if (thr->grcu_is_online) {
+            thr->grcu_is_online = false;
+            grcu_thread_offline();
         }
     }
 }
@@ -1161,12 +1161,12 @@ void* dnsio_tcp_start(void* thread_asvoid)
     // before we begin processing possible future shutdown events.
     thr->pctx = dnspacket_ctx_init_tcp(&thr->stats, addrconf->tcp_pad, addrconf->tcp_timeout);
 
-    rcu_register_thread();
-    thr->rcu_is_online = true;
+    grcu_register_thread();
+    thr->grcu_is_online = true;
 
     ev_run(loop, 0);
 
-    rcu_unregister_thread();
+    grcu_unregister_thread();
 
     unregister_thread(thr);
     ev_loop_destroy(loop);
