@@ -299,6 +299,7 @@ AC_DEFINE_UNQUOTED([BUILD_INFO],["$B_INFO"],[Build Info])
 
 AS_IF([test $developer = yes -o $extrawarn = yes],[
     AX_APPEND_COMPILE_FLAGS([\
+        -Wmost \
         -Wextra \
         -Waggregate-return \
         -Walloca \
@@ -312,7 +313,6 @@ AS_IF([test $developer = yes -o $extrawarn = yes],[
         -Wdouble-promotion \
         -Wduplicated-branches \
         -Wduplicated-cond \
-        -Wendif-labels \
         -Werror=vla \
         -Wfloat-equal \
         -Wfloat-conversion \
@@ -321,7 +321,6 @@ AS_IF([test $developer = yes -o $extrawarn = yes],[
         -Winit-self \
         -Wjump-misses-init \
         -Wlogical-op \
-        -Wloop-analysis \
         -Wmissing-declarations \
         -Wmissing-include-dirs \
         -Wmissing-prototypes \
@@ -332,7 +331,6 @@ AS_IF([test $developer = yes -o $extrawarn = yes],[
         -Wshadow \
         -Wsign-conversion \
         -Wshift-overflow=2 \
-        -Wstrict-aliasing=3 \
         -Wstrict-overflow=5 \
         -Wstrict-prototypes \
         -Wstringop-overflow=3 \
@@ -340,7 +338,6 @@ AS_IF([test $developer = yes -o $extrawarn = yes],[
         -Wswitch-enum \
         -Wtrampolines \
         -Wundef \
-        -Wuninitialized \
         -Wunused \
         -Wwrite-strings \
         -Wthis-does-not-exist \
