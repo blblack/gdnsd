@@ -135,7 +135,7 @@ static void plugin_extfile_add_mon_cname(const char* desc V_UNUSED, const char* 
         }
     }
 
-    gdnsd_assert(svc);
+    gdnsd_assume(svc);
 
     svc->mons = xrealloc_n(svc->mons, svc->num_mons + 1, sizeof(*svc->mons));
     extf_mon_t* mon = &svc->mons[svc->num_mons];
@@ -174,7 +174,7 @@ static bool process_entry(const extf_svc_t* svc, const char* matchme, vscf_data_
             const extf_mon_t findme = { matchme, 0, 0 };
             const extf_mon_t* found = bsearch(&findme, svc->mons, svc->num_mons, sizeof(findme), moncmp);
             if (found) {
-                gdnsd_assert(results);
+                gdnsd_assume(results);
                 results[found->midx] = result;
             } else {
                 log_warn("plugin_extfile: Service type '%s': entry '%s' in file '%s' ignored, did not match any configured resource!", svc->name, matchme, svc->path);
@@ -228,7 +228,7 @@ static void process_file(const extf_svc_t* svc)
             if (results[i] & GDNSD_STTL_FORCED) {
                 log_warn("plugin_extfile: Service type '%s': '%s' was defaulted! (not specified by input file)", svc->name, svc->mons[i].name);
                 results[i] &= ~GDNSD_STTL_FORCED;
-                gdnsd_assert(results[i] == svc->def_sttl);
+                gdnsd_assume(results[i] == svc->def_sttl);
             }
         }
         if (svc->direct)
@@ -249,10 +249,10 @@ static void process_file(const extf_svc_t* svc)
 F_NONNULL
 static void timer_cb(struct ev_loop* loop, ev_timer* w, int revents V_UNUSED)
 {
-    gdnsd_assert(revents == EV_TIMER);
+    gdnsd_assume(revents == EV_TIMER);
 
     extf_svc_t* svc = w->data;
-    gdnsd_assert(svc);
+    gdnsd_assume(svc);
 
     if (svc->direct)
         ev_timer_stop(loop, w);
@@ -262,10 +262,10 @@ static void timer_cb(struct ev_loop* loop, ev_timer* w, int revents V_UNUSED)
 F_NONNULL
 static void file_cb(struct ev_loop* loop, ev_stat* w, int revents V_UNUSED)
 {
-    gdnsd_assert(revents == EV_STAT);
+    gdnsd_assume(revents == EV_STAT);
     extf_svc_t* svc = w->data;
-    gdnsd_assert(svc);
-    gdnsd_assert(svc->direct);
+    gdnsd_assume(svc);
+    gdnsd_assume(svc->direct);
 
     ev_timer* tw = &svc->time_watcher;
     if (testsuite_nodelay)

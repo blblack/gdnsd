@@ -94,11 +94,14 @@ void gdnsd_logger(int level, const char* fmt, ...);
 //   is set; use this in performance-critical areas (to avoid the runtime
 //   check of the debug flag) or for spammy messages that only developers need
 #ifdef NDEBUG
-#  if defined(GDNSD_HAVE_UNREACH_BUILTIN) && !defined(GDNSD_NO_UNREACH_BUILTIN)
-#    define gdnsd_assert(expr) do { if (!(expr)) __builtin_unreachable(); } while (0)
+#  if defined(GDNSD_HAVE_ASSUME_BUILTIN)
+#    define gdnsd_assume(expr) __builtin_assume(expr)
+#  elif defined(GDNSD_HAVE_UNREACH_BUILTIN) && !defined(GDNSD_NO_UNREACH_BUILTIN)
+#    define gdnsd_assume(expr) do { if (!(expr)) __builtin_unreachable(); } while (0)
 #  else
-#    define gdnsd_assert(expr) ((void)(0))
+#    define gdnsd_assume(expr) ((void)(0))
 #  endif
+#  define gdnsd_assert(expr) ((void)(0))
 #  define log_devdebug(...) ((void)(0))
 #else
 #  define gdnsd_assert(expr) do {\
@@ -108,6 +111,7 @@ void gdnsd_logger(int level, const char* fmt, ...);
        abort();\
      }\
    } while (0)
+#  define gdnsd_assume(expr) gdnsd_assert(expr)
 #  define log_devdebug(...) do {\
      if (gdnsd_log_get_debug())\
          gdnsd_logger(LOG_DEBUG, __VA_ARGS__);\

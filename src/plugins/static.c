@@ -67,7 +67,7 @@ static bool config_res(const char* resname, unsigned resname_len V_UNUSED, vscf_
             log_fatal("plugin_static: resource %s: must be an IPv4 address or a domainname in string form", resname);
         if (status == DNAME_PARTIAL)
             log_fatal("plugin_static: resource %s: '%s' must be fully qualified (end in dot)", resname, addr_txt);
-        gdnsd_assert(status == DNAME_VALID);
+        gdnsd_assume(status == DNAME_VALID);
         resources[res].dname = dname_trim(resources[res].dname);
     } else {
         resources[res].is_addr = true;
@@ -80,7 +80,7 @@ static void plugin_static_load_config(vscf_data_t* config, const unsigned num_th
 {
     if (!config)
         log_fatal("static plugin requires a 'plugins' configuration stanza");
-    gdnsd_assert(vscf_get_type(config) == VSCF_HASH_T);
+    gdnsd_assume(vscf_get_type(config) == VSCF_HASH_T);
 
     num_resources = vscf_hash_get_len(config);
     if (num_resources) {
@@ -176,7 +176,7 @@ static void plugin_static_add_svctype(const char* name, vscf_data_t* svc_cfg, co
 
 static void add_mon_any(const char* svc_name, const unsigned idx)
 {
-    gdnsd_assert(svc_name);
+    gdnsd_assume(svc_name);
 
     static_svc_t* this_svc = NULL;
 
@@ -186,7 +186,7 @@ static void add_mon_any(const char* svc_name, const unsigned idx)
             break;
         }
     }
-    gdnsd_assert(this_svc);
+    gdnsd_assume(this_svc);
 
     static_mon_t* this_mon = xmalloc(sizeof(*this_mon));
     static_mons = xrealloc_n(static_mons, num_mons + 1, sizeof(*static_mons));

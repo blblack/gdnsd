@@ -126,7 +126,7 @@ void dnsio_udp_init(const pid_t main_pid)
     }
     errno = 0;
 #endif
-    gdnsd_assert(main_pid);
+    gdnsd_assume(main_pid);
     mainpid = main_pid;
     struct sigaction sa;
     sa.sa_sigaction = sighand_stop;
@@ -224,7 +224,7 @@ static void udp_sock_opts_v6(const gdnsd_anysin_t* sa, const int sock)
 void udp_sock_setup(dns_thread_t* t)
 {
     const dns_addr_t* addrconf = t->ac;
-    gdnsd_assert(addrconf);
+    gdnsd_assume(addrconf);
 
     const gdnsd_anysin_t* sa = &addrconf->addr;
 
@@ -432,7 +432,7 @@ static void mainloop(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* stats, c
 F_HOT F_NONNULL
 static void process_mmsgs(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* stats, struct mmsghdr* dgrams, ssize_t mmsg_rv)
 {
-    gdnsd_assert(mmsg_rv != 0);
+    gdnsd_assume(mmsg_rv != 0);
     if (unlikely(mmsg_rv < 0)) {
         stats_own_inc(&stats->udp.recvfail);
         log_neterr("UDP recvmmsg() error: %s", logf_errno());
@@ -440,7 +440,7 @@ static void process_mmsgs(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* sta
     }
 
     unsigned pkts = (unsigned)mmsg_rv;
-    gdnsd_assert(pkts <= MMSG_WIDTH);
+    gdnsd_assume(pkts <= MMSG_WIDTH);
     for (unsigned i = 0; i < pkts; i++) {
         gdnsd_anysin_t* asp = dgrams[i].msg_hdr.msg_name;
         if (asp->sa.sa_family == AF_INET6)
@@ -484,7 +484,7 @@ static void process_mmsgs(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* sta
         // send next run of non-zero entries
         while (spkts) {
             mmsg_rv = sendmmsg(fd, dgptr, spkts, 0);
-            gdnsd_assert(mmsg_rv != 0); // not possible, sendmmsg returns >0 or -1+errno
+            gdnsd_assume(mmsg_rv != 0); // not possible, sendmmsg returns >0 or -1+errno
             if (unlikely(mmsg_rv < 0)) {
                 if (errno == EINTR || ERRNO_WOULDBLOCK)
                     continue; // retry same sendmmsg() call
@@ -493,8 +493,8 @@ static void process_mmsgs(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* sta
                 mmsg_rv = 1; // count as one packet "handled", so we
                 // don't re-send the erroring packet
             }
-            gdnsd_assert(mmsg_rv >= 1);
-            gdnsd_assert(mmsg_rv <= (int)spkts);
+            gdnsd_assume(mmsg_rv >= 1);
+            gdnsd_assume(mmsg_rv <= (int)spkts);
             const unsigned sent = (unsigned)mmsg_rv;
             dgptr += sent; // skip past the handled packets
             spkts -= sent; // drop the count of all handled packets
@@ -571,7 +571,7 @@ static void mainloop_mmsg(const int fd, dnsp_ctx_t* pctx, dnspacket_stats_t* sta
 F_NONNULL F_PURE
 static bool is_ipv6(const gdnsd_anysin_t* sa)
 {
-    gdnsd_assert(sa->sa.sa_family == AF_INET6 || sa->sa.sa_family == AF_INET);
+    gdnsd_assume(sa->sa.sa_family == AF_INET6 || sa->sa.sa_family == AF_INET);
     return (sa->sa.sa_family == AF_INET6);
 }
 

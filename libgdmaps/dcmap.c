@@ -77,7 +77,7 @@ static bool dcmap_new_iter(const char* key, unsigned klen V_UNUSED, vscf_data_t*
 
 dcmap_t* dcmap_new(const vscf_data_t* map_cfg, dclists_t* dclists, const unsigned parent_def, const unsigned true_depth, const char* map_name, const bool allow_auto)
 {
-    gdnsd_assert(vscf_is_hash(map_cfg));
+    gdnsd_assume(vscf_is_hash(map_cfg));
 
     dcmap_t* dcmap = xcalloc(sizeof(*dcmap));
     unsigned nchild = vscf_hash_get_len(map_cfg);
@@ -88,7 +88,7 @@ dcmap_t* dcmap_new(const vscf_data_t* map_cfg, dclists_t* dclists, const unsigne
             uint8_t newlist[256];
             bool is_auto = dclists_xlate_vscf(dclists, def_cfg, map_name, newlist, allow_auto);
             if (is_auto) {
-                gdnsd_assert(allow_auto);
+                gdnsd_assume(allow_auto);
                 dcmap->def_dclist = DCLIST_AUTO;
             } else {
                 dcmap->def_dclist = 0;
