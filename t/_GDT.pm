@@ -115,24 +115,11 @@ our $EXTRA_PORT = $DNS_PORT + 1;
 
 our $saved_pid;
 
-# Where to find the gdnsd binary during "installcheck" vs "check"
-our $GDNSD_BIN = $ENV{INSTALLCHECK_SBINDIR}
-    ? "$ENV{INSTALLCHECK_SBINDIR}/gdnsd"
-    : "$ENV{TOP_BUILDDIR}/src/gdnsd";
-
-# As above for gdnsdctl
-our $GDNSDCTL_BIN = $ENV{INSTALLCHECK_BINDIR}
-    ? "$ENV{INSTALLCHECK_BINDIR}/gdnsdctl"
-    : "$ENV{TOP_BUILDDIR}/src/gdnsdctl";
-
-# extmon_helper works out of the box for "installcheck",
-# but needs some custom paths for "check"
-our $EXTMON_BIN;
-our $EXTMON_HELPER_CFG = '';
-if(!$ENV{INSTALLCHECK_SBINDIR}) { # not installcheck, regular check
-    $EXTMON_BIN = "$ENV{TOP_BUILDDIR}/src/plugins/gdnsd_extmon_helper";
-    $EXTMON_HELPER_CFG = qq|extmon => { helper_path => "$EXTMON_BIN" }|;
-}
+# Where to find binaries at
+our $GDNSD_BIN = "$ENV{PREFIX}/sbin/gdnsd";
+our $GDNSDCTL_BIN = "$ENV{PREFIX}/bin/gdnsdctl";
+our $EXTMON_BIN = "$ENV{PREFIX}/libexec/gdnsd/gdnsd_extmon_helper";
+our $EXTMON_HELPER_CFG = qq|extmon => { helper_path => "$EXTMON_BIN" }|;
 
 our $RAND_LOOPS = $ENV{GDNSD_RTEST_LOOPS} || 50;
 

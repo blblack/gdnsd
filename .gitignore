@@ -1,36 +1,20 @@
-# Autotools junk at top level
-/autom4te.cache/
-/aclocal.m4
-/config.h
-/config.h.in
-/config.log
-/config.status
-/configure
-/libtool
-/stamp-h1
+# Zig!
+zig-out
+.zig-cache
+
 # Distribution tarballs and signatures
 /gdnsd-*.tar.xz
 /gdnsd-*.tar.xz.asc
-
-# Built, installed binaries
-/src/gdnsd
-/src/gdnsdctl
-/src/gdnsd_dnssec_bench
-/src/plugins/gdnsd_extmon_helper
-/src/plugins/gdnsd_geoip_test
-# old pathnames for above two:
-/plugins/gdnsd_extmon_helper
-/plugins/gdnsd_geoip_test
 
 # Built and distributed in tarballs, but not kept in git
 /src/zscan_rfc1035.c
 /libgdnsd/vscf.c
 
 # Testsuite stuff
-/t/testout/
+/t/testout/[0-9]*
 /t/libgdmaps/*.t
 /t/libgdmaps/etc/
-.prove
+.prove*
 
 # Various QA tool outputs
 /_vginst

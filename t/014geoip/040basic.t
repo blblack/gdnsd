@@ -3,9 +3,7 @@
 use _GDT ();
 use Test::More tests => 58 * 2;
 
-my $test_bin = $ENV{INSTALLCHECK_BINDIR}
-    ? "$ENV{INSTALLCHECK_BINDIR}/gdnsd_geoip_test"
-    : "$ENV{TOP_BUILDDIR}/src/plugins/gdnsd_geoip_test";
+my $test_bin = "$ENV{PREFIX}/bin/gdnsd_geoip_test";
 my $test_exec = qq|$test_bin -c ${_GDT::OUTDIR}/etc|;
 
 my $neg_soa = 'example.com 900 SOA ns1.example.com dns-admin.example.com 1 7200 1800 259200 900';
