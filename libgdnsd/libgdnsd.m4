@@ -1,6 +1,3 @@
-# Find out which strerror_r we have
-AC_FUNC_STRERROR_R
-
 HAVE_LIBUNWIND=0
 LIBUNWIND_LIBS=
 AC_CHECK_HEADER([libunwind.h],[

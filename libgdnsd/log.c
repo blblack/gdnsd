@@ -21,6 +21,7 @@
 
 #include <gdnsd/log.h>
 #include <gdnsd/compiler.h>
+#include <gdnsd/gstrerrorr.h>
 #include <gdnsd/net.h>
 #include <gdnsd/paths.h>
 #include <gdnsd/dname.h>
@@ -218,26 +219,10 @@ void gdnsd_fmtbuf_reset(void)
 const char* gdnsd_logf_strerror(const int errnum)
 {
     char tmpbuf[GDNSD_ERRNO_MAXLEN];
-    const char* tmpbuf_ptr;
-
-#ifdef STRERROR_R_CHAR_P
-    // GNU-style
-    tmpbuf_ptr = strerror_r(errnum, tmpbuf, GDNSD_ERRNO_MAXLEN);
-#else
-    // POSIX style (+ older glibc bug-compat)
-    int rv = strerror_r(errnum, tmpbuf, GDNSD_ERRNO_MAXLEN);
-    if (rv) {
-        if (rv == EINVAL || (rv < 0 && errno == EINVAL))
-            snprintf(tmpbuf, GDNSD_ERRNO_MAXLEN, "Invalid errno: %i", errnum);
-        else
-            log_fatal("strerror_r(,,%u) failed", GDNSD_ERRNO_MAXLEN);
-    }
-    tmpbuf_ptr = tmpbuf;
-#endif
-
-    const unsigned len = strlen(tmpbuf_ptr) + 1;
+    gstrerrorr(errnum, tmpbuf, GDNSD_ERRNO_MAXLEN);
+    const unsigned len = strlen(tmpbuf) + 1;
     char* buf = gdnsd_fmtbuf_alloc(len);
-    memcpy(buf, tmpbuf_ptr, len);
+    memcpy(buf, tmpbuf, len);
     return buf;
 }
 

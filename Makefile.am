@@ -225,6 +225,7 @@ libgdnsd_libgdnsd_a_SOURCES = \
 	include/gdnsd/vscf.h \
 	include/gdnsd/dname.h \
 	include/gdnsd/log.h \
+	include/gdnsd/gstrerrorr.h \
 	include/gdnsd/compiler.h \
 	include/gdnsd/net.h \
 	include/gdnsd/misc.h \
@@ -236,6 +237,7 @@ libgdnsd_libgdnsd_a_SOURCES = \
 	libgdnsd/dname.c \
 	libgdnsd/net.c \
 	libgdnsd/log.c \
+	libgdnsd/gstrerrorr.c \
 	libgdnsd/misc.c \
 	libgdnsd/paths.c \
 	libgdnsd/file.c \
