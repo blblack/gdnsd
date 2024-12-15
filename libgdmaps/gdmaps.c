@@ -608,7 +608,6 @@ F_NONNULL
 static void* gdmaps_reload_thread(void* arg)
 {
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-    gdnsd_thread_setname("gdnsd-geoip-db");
     gdnsd_thread_reduce_prio();
 
     struct gdmaps* gdmaps = arg;

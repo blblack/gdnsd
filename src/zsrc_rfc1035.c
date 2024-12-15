@@ -141,7 +141,6 @@ static void zf_threads_early_destroy(struct zf_threads* zft)
 F_NONNULL
 static void* zones_worker(void* list_asvoid)
 {
-    gdnsd_thread_setname("rfc1035-worker");
     struct zf_list* zfl = list_asvoid;
     while (zfl) {
         char* name = make_zone_name(zfl->fn);

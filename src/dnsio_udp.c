@@ -462,8 +462,6 @@ static bool is_ipv6(const struct anysin* sa)
 
 void* dnsio_udp_start(void* thread_asvoid)
 {
-    gdnsd_thread_setname("gdnsd-io-udp");
-
     const struct dns_thread* t = thread_asvoid;
     const struct dns_addr* addrconf = t->ac;
     gdnsd_assume(addrconf);

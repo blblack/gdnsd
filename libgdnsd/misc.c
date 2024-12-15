@@ -42,10 +42,6 @@
 #include <math.h>
 #include <sys/resource.h>
 
-#ifdef HAVE_PTHREAD_NP_H
-#  include <pthread_np.h>
-#endif
-
 #include <sodium.h>
 
 /* misc */
@@ -195,17 +191,6 @@ uintptr_t gdnsd_shorthash_up(const uint8_t* data, const size_t len)
     } output;
     crypto_shorthash(output.u8, data, len, sh_key);
     return output.up;
-}
-
-void gdnsd_thread_setname(const char* n V_UNUSED)
-{
-#if defined HAVE_PTHREAD_SETNAME_NP_2
-    pthread_setname_np(pthread_self(), n);
-#elif defined HAVE_PTHREAD_SET_NAME_NP_2
-    pthread_set_name_np(pthread_self(), n);
-#elif defined HAVE_PTHREAD_SETNAME_NP_3
-    pthread_setname_np(pthread_self(), n, NULL);
-#endif
 }
 
 void gdnsd_thread_reduce_prio(void)

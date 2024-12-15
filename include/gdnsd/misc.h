@@ -62,9 +62,6 @@ F_NONNULL
 uintptr_t gdnsd_shorthash_up(const uint8_t* data, const size_t len);
 #define gdnsd_shorthash_u32(_d,_l) ((uint32_t)gdnsd_shorthash_up(_d,_l))
 
-// set thread name (via pthread_setname_np or similar)
-void gdnsd_thread_setname(const char* n);
-
 // scale an unsigned by a double in the range [0.0 - 1.0]
 //   and get the ceiling of the result.  Cannot overflow.
 F_UNUSED F_CONST

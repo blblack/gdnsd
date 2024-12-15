@@ -228,52 +228,6 @@ AS_IF([test "x$with_gnutls" = xyes -a $HAVE_GNUTLS -ne 1],[
     AC_MSG_ERROR([gnutls >= 3.6.10 not found, but --with-gnutls was requested explicitly])
 ])
 
-#---------------------------------------------
-# pthread setname (3 non-portable variants...)
-#---------------------------------------------
-AC_CHECK_HEADERS([pthread_np.h])
-define(pthread_np_preamble,[
-  #include <pthread.h>
-  #if HAVE_PTHREAD_NP_H
-  #  include <pthread_np.h>
-  #endif
-])
-# 2-arg setname (e.g. Linux/glibc, QNX, IBM)
-AC_MSG_CHECKING([for 2-arg pthread_setname_np])
-AC_LINK_IFELSE([AC_LANG_PROGRAM(pthread_np_preamble, [
-    pthread_setname_np(pthread_self(), "foo")
-])], [
-  AC_DEFINE(HAVE_PTHREAD_SETNAME_NP_2, 1, [2-arg pthread_setname_np])
-  AC_MSG_RESULT([yes])
-], [
-  AC_MSG_RESULT([no])
-
-  # 2-arg set_name (e.g. FreeBSD, OpenBSD)
-  AC_MSG_CHECKING([for 2-arg pthread_set_name_np])
-  AC_LINK_IFELSE([AC_LANG_PROGRAM(pthread_np_preamble, [
-      pthread_set_name_np(pthread_self(), "foo");
-  ])], [
-    AC_DEFINE(HAVE_PTHREAD_SET_NAME_NP_2, 1, [2-arg pthread_set_name_np])
-    AC_MSG_RESULT([yes])
-  ], [
-    AC_MSG_RESULT([no])
-
-    # 3-arg setname (e.g. NetBSD)
-    AC_MSG_CHECKING([for 3-arg pthread_setname_np])
-    AC_LINK_IFELSE([AC_LANG_PROGRAM(pthread_np_preamble, [
-        return pthread_setname_np(pthread_self(), "foo", NULL);
-    ])], [
-      AC_DEFINE(HAVE_PTHREAD_SETNAME_NP_3, 1, [3-arg pthread_setname_np])
-      AC_MSG_RESULT([yes])
-    ], [
-      AC_MSG_RESULT([no])
-    ])
-  ])
-])
-#---------------------------------------------
-# end pthread_setname stuff
-#---------------------------------------------
-
 # Basic perl 5.10.1+
 AC_ARG_VAR([PERL],[path to Perl 5.10.1 or higher])
 AS_IF([test "x$ac_cv_env_PERL_set" != "xset"],[

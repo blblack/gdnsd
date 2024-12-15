@@ -958,8 +958,6 @@ static void set_accf(const struct dns_addr* addrconf V_UNUSED, const int sock V_
 
 void* dnsio_tcp_start(void* thread_asvoid)
 {
-    gdnsd_thread_setname("gdnsd-io-tcp");
-
     const struct dns_thread* t = thread_asvoid;
     const struct dns_addr* addrconf = t->ac;
     gdnsd_assume(addrconf);

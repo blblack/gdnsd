@@ -856,7 +856,6 @@ void ltree_destroy(union ltree_node* node)
 
 void* ltree_zones_reloader_thread(void* init_asvoid)
 {
-    gdnsd_thread_setname("gdnsd-zreload");
     const bool init = (bool)init_asvoid;
     if (init) {
         gdnsd_assert(!GRCU_OWN_READ(lroot));
