@@ -23,8 +23,8 @@ GDNSDCTL_BIN=@GDNSD_BINDIR@/gdnsdctl
 NAME=gdnsd
 
 # editable inputs, or override in /etc/default/gdnsd:
-GDNSD_RUNDIR=@GDNSD_RUNDIR@
-GDNSD_CFGDIR="-c @GDNSD_CONFIGDIR@"
+GDNSD_RUNDIR=@GDNSD_DEFPATH_RUN@
+GDNSD_CFGDIR="-c @GDNSD_DEFPATH_CONFIG@"
 GDNSD_USER=gdnsd
 
 test -x $DAEMON || exit 0

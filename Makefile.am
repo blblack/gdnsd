@@ -287,7 +287,7 @@ init/gdnsd.service: init/gdnsd.service.tmpl Makefile
 	$(AM_V_GEN)sed -e 's|@GDNSD_SBINDIR[@]|$(sbindir)|g' -e 's|@GDNSD_BINDIR[@]|$(bindir)|g' <$(srcdir)/init/gdnsd.service.tmpl >$@
 
 init/gdnsd.init: init/gdnsd.init.tmpl Makefile
-	$(AM_V_GEN)sed -e 's|@GDNSD_SBINDIR[@]|$(sbindir)|g' -e 's|@GDNSD_BINDIR[@]|$(bindir)|g' -e 's|@GDNSD_RUNDIR@|$(GDNSD_DEFPATH_RUN)|g' -e 's|@GDNSD_CONFIGDIR@|$(GDNSD_DEFPATH_CONFIG)|g' <$(srcdir)/init/gdnsd.init.tmpl >$@
+	$(AM_V_GEN)sed -e 's|@GDNSD_SBINDIR[@]|$(sbindir)|g' -e 's|@GDNSD_BINDIR[@]|$(bindir)|g' -e 's|@GDNSD_DEFPATH_RUN[@]|$(GDNSD_DEFPATH_RUN)|g' -e 's|@GDNSD_DEFPATH_CONFIG[@]|$(GDNSD_DEFPATH_CONFIG)|g' <$(srcdir)/init/gdnsd.init.tmpl >$@
 
 EXTRA_DIST += init/gdnsd.service.tmpl init/gdnsd.init.tmpl
 CLEANFILES += init/gdnsd.service init/gdnsd.init
