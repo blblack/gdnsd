@@ -27,29 +27,25 @@
 
 // We need this for alignment / structure defs in dnsio_tcp
 union proxy_hdr {
+    char v1_line[108];
     struct {
-        char line[108];
-    } v1;
-    struct {
-        uint8_t sig[12];
-        uint8_t ver_cmd;
-        uint8_t fam;
-        uint16_t len;
+        struct {
+            uint8_t sig[12];
+            uint8_t ver_cmd;
+            uint8_t fam;
+            uint16_t data_len;
+        } meta;
         union {
             struct {
                 uint32_t src_addr;
-                // cppcheck-suppress unusedStructMember
                 uint32_t dst_addr;
                 uint16_t src_port;
-                // cppcheck-suppress unusedStructMember
                 uint16_t dst_port;
             } v4;
             struct {
                 uint8_t  src_addr[16];
-                // cppcheck-suppress unusedStructMember
                 uint8_t  dst_addr[16];
                 uint16_t src_port;
-                // cppcheck-suppress unusedStructMember
                 uint16_t dst_port;
             } v6;
         } ip;

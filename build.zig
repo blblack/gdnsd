@@ -288,6 +288,17 @@ fn build_gdnsd(b: *Build, bcfg: BuildCfg, bcom: BuildCommon) void {
     for (bcom.shlibs.items) |s| gdnsd.linkSystemLibrary(s);
     gdnsd.linkLibrary(bcom.libgdnsd);
     gdnsd.linkLibrary(bcom.libgdmaps);
+
+    const proxy_o = b.addObject(.{
+        .name = "proxy",
+        .root_source_file = b.path("src/proxy.zig"),
+        .target = bcfg.target,
+        .optimize = bcfg.optimize,
+        .link_libc = true,
+    });
+    add_common_incs(proxy_o, bcom.config_h);
+    gdnsd.addObject(proxy_o);
+
     gdnsd.addCSourceFile(.{
         .file = ragel_gen(b, "src/zscan_rfc1035.rl", "src/zscan_rfc1035.c", "-G2"),
         .flags = warn_cflags,
@@ -310,7 +321,6 @@ fn build_gdnsd(b: *Build, bcfg: BuildCfg, bcom: BuildCommon) void {
             "src/dnssec.c",
             "src/dnssec_alg.c",
             "src/dnssec_nxdc.c",
-            "src/proxy.c",
             "src/socks.c",
             "src/statio.c",
             "src/plugins/extmon_comms.c",
