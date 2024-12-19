@@ -140,7 +140,7 @@ static bool action_reloadz(const struct csc* csc)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_ZREL;
+    req.f.key = REQ_ZREL;
     enum csc_txn_rv crv = csc_txn(csc, &req, &resp);
     if (opt_oneshot && crv == CSC_TXN_FAIL_SOFT)
         crv = CSC_TXN_FAIL_HARD;
@@ -163,7 +163,7 @@ static bool action_replace(const struct csc* csc)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_REPL;
+    req.f.key = REQ_REPL;
     enum csc_txn_rv crv = csc_txn(csc, &req, &resp);
     if (opt_oneshot && crv == CSC_TXN_FAIL_SOFT)
         crv = CSC_TXN_FAIL_HARD;
@@ -202,7 +202,7 @@ static bool action_stats(const struct csc* csc)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_STAT;
+    req.f.key = REQ_STAT;
     enum csc_txn_rv crv = csc_txn_getdata(csc, &req, &resp, &resp_data);
     if (opt_oneshot && crv == CSC_TXN_FAIL_SOFT)
         crv = CSC_TXN_FAIL_HARD;
@@ -214,8 +214,8 @@ static bool action_stats(const struct csc* csc)
     gdnsd_assert(crv == CSC_TXN_OK);
 
     if (resp_data) {
-        gdnsd_assume(resp.d);
-        fwrite(resp_data, 1, resp.d, stdout);
+        gdnsd_assume(resp.f.d);
+        fwrite(resp_data, 1, resp.f.d, stdout);
         free(resp_data);
     }
 
@@ -229,7 +229,7 @@ static bool action_states(const struct csc* csc)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_STATE;
+    req.f.key = REQ_STATE;
     enum csc_txn_rv crv = csc_txn_getdata(csc, &req, &resp, &resp_data);
     if (opt_oneshot && crv == CSC_TXN_FAIL_SOFT)
         crv = CSC_TXN_FAIL_HARD;
@@ -242,8 +242,8 @@ static bool action_states(const struct csc* csc)
     gdnsd_assert(crv == CSC_TXN_OK);
 
     if (resp_data) {
-        gdnsd_assume(resp.d);
-        fwrite(resp_data, 1, resp.d, stdout);
+        gdnsd_assume(resp.f.d);
+        fwrite(resp_data, 1, resp.f.d, stdout);
         free(resp_data);
     }
 
@@ -310,9 +310,9 @@ static bool action_chal(const struct csc* csc, int argc, char** argv)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_CHAL;
+    req.f.key = REQ_CHAL;
     csbuf_set_v(&req, chal_count);
-    req.d = dlen;
+    req.f.d = dlen;
     enum csc_txn_rv crv = csc_txn_senddata(csc, &req, &resp, (char*)buf);
     if (opt_oneshot && crv == CSC_TXN_FAIL_SOFT)
         crv = CSC_TXN_FAIL_HARD;
@@ -332,7 +332,7 @@ static bool action_chalf(const struct csc* csc)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_CHALF;
+    req.f.key = REQ_CHALF;
     enum csc_txn_rv crv = csc_txn(csc, &req, &resp);
     if (opt_oneshot && crv == CSC_TXN_FAIL_SOFT)
         crv = CSC_TXN_FAIL_HARD;

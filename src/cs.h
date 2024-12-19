@@ -33,7 +33,7 @@ union csbuf {
         uint8_t v1;
         uint8_t v2;
         uint32_t d;
-    };
+    } f;
 };
 
 F_UNUSED F_CONST
@@ -45,16 +45,16 @@ static uint32_t csbuf_make_v(uint8_t v0, uint8_t v1, uint8_t v2)
 F_UNUSED F_NONNULL
 static uint32_t csbuf_get_v(const union csbuf* c)
 {
-    return csbuf_make_v(c->v0, c->v1, c->v2);
+    return csbuf_make_v(c->f.v0, c->f.v1, c->f.v2);
 }
 
 F_UNUSED F_NONNULL
 static void csbuf_set_v(union csbuf* c, const uint32_t v)
 {
     gdnsd_assume(v <= 0xFFFFFF);
-    c->v0 = v >> 16;
-    c->v1 = v >> 8;
-    c->v2 = v;
+    c->f.v0 = v >> 16;
+    c->f.v1 = v >> 8;
+    c->f.v2 = v;
 }
 
 // Legal values for "key"

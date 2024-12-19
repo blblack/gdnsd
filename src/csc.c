@@ -52,23 +52,23 @@ static bool csc_get_status(struct csc* csc)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_INFO;
-    req.v0 = PACKAGE_V_MAJOR;
-    req.v1 = PACKAGE_V_MINOR;
-    req.v2 = PACKAGE_V_PATCH;
+    req.f.key = REQ_INFO;
+    req.f.v0 = PACKAGE_V_MAJOR;
+    req.f.v1 = PACKAGE_V_MINOR;
+    req.f.v2 = PACKAGE_V_PATCH;
     if (csc_txn(csc, &req, &resp))
         return true;
 
-    csc->server_pid = (pid_t)resp.d;
-    csc->svers_major = resp.v0;
-    csc->svers_minor = resp.v1;
-    csc->svers_patch = resp.v2;
+    csc->server_pid = (pid_t)resp.f.d;
+    csc->svers_major = resp.f.v0;
+    csc->svers_minor = resp.f.v1;
+    csc->svers_patch = resp.f.v2;
 
     if (!csc_server_version_gte(csc, 3, 0, 0))
         return true;
 
     int snp_rv = snprintf(csc->server_vers, 16, "%hhu.%hhu.%hhu",
-                          resp.v0, resp.v1, resp.v2);
+                          resp.f.v0, resp.f.v1, resp.f.v2);
     gdnsd_assume(snp_rv >= 5 && snp_rv < 16);
     return false;
 }
@@ -239,14 +239,14 @@ size_t csc_txn_getfds(const struct csc* csc, const union csbuf* req, union csbuf
             // (by e.g. sending over a fake/useless 3rd socket that doesn't
             // match anything).
             fds_wanted = csbuf_get_v(resp);
-            if (resp->key != RESP_ACK || fds_wanted < 2)
+            if (resp->f.key != RESP_ACK || fds_wanted < 2)
                 log_fatal("REPLACE[new daemon]: takeover socket handoff failed: bad first message");
             fds = xmalloc_n(fds_wanted, sizeof(*fds));
         } else {
             // followup messages carry same ACK + total fd count as initial msg
             gdnsd_assume(fds);
             gdnsd_assume(fds_wanted >= 2);
-            if (RESP_ACK != resp->key || fds_wanted != csbuf_get_v(resp))
+            if (RESP_ACK != resp->f.key || fds_wanted != csbuf_get_v(resp))
                 log_fatal("REPLACE[new daemon]: takeover socket handoff failed: bad followup message");
         }
 
@@ -281,13 +281,13 @@ enum csc_txn_rv csc_txn(const struct csc* csc, const union csbuf* req, union csb
         return CSC_TXN_FAIL_SOFT;
     }
 
-    if (resp->key == RESP_ACK)
+    if (resp->f.key == RESP_ACK)
         return CSC_TXN_OK;
 
-    if (resp->key == RESP_LATR)
+    if (resp->f.key == RESP_LATR)
         return CSC_TXN_FAIL_SOFT;
 
-    if (resp->key == RESP_DENY)
+    if (resp->f.key == RESP_DENY)
         log_err("Server actively denied request by policy");
     return CSC_TXN_FAIL_HARD;
 }
@@ -300,8 +300,8 @@ enum csc_txn_rv csc_txn_getdata(const struct csc* csc, const union csbuf* req, u
 
     char* rd = NULL;
 
-    if (resp->d) {
-        const size_t total = resp->d;
+    if (resp->f.d) {
+        const size_t total = resp->f.d;
         rd = xmalloc(total);
         size_t done = 0;
 
@@ -323,7 +323,7 @@ enum csc_txn_rv csc_txn_getdata(const struct csc* csc, const union csbuf* req, u
 
 enum csc_txn_rv csc_txn_senddata(const struct csc* csc, const union csbuf* req, union csbuf* resp, char* req_data)
 {
-    gdnsd_assume(req->d);
+    gdnsd_assume(req->f.d);
 
     ssize_t pktlen = send(csc->fd, req->raw, 8, 0);
     if (pktlen != 8) {
@@ -331,7 +331,7 @@ enum csc_txn_rv csc_txn_senddata(const struct csc* csc, const union csbuf* req, 
         return CSC_TXN_FAIL_SOFT;
     }
 
-    const size_t total = req->d;
+    const size_t total = req->f.d;
     size_t done = 0;
 
     while (done < total) {
@@ -353,10 +353,10 @@ enum csc_txn_rv csc_txn_senddata(const struct csc* csc, const union csbuf* req, 
         return CSC_TXN_FAIL_SOFT;
     }
 
-    if (resp->key == RESP_ACK)
+    if (resp->f.key == RESP_ACK)
         return CSC_TXN_OK;
 
-    if (resp->key == RESP_LATR)
+    if (resp->f.key == RESP_LATR)
         return CSC_TXN_FAIL_SOFT;
 
     return CSC_TXN_FAIL_HARD;
@@ -377,7 +377,7 @@ enum csc_txn_rv csc_stop_server(const struct csc* csc)
     union csbuf req;
     union csbuf resp;
     memset(&req, 0, sizeof(req));
-    req.key = REQ_STOP;
+    req.f.key = REQ_STOP;
     return csc_txn(csc, &req, &resp);
 }
 
@@ -392,20 +392,20 @@ size_t csc_get_stats_handoff(const struct csc* csc, uint64_t** raw_u64)
         return 0;
     }
 
-    if (handoff.key != PSH_SHAND) {
-        log_err("REPLACE[new daemon]: Stats handoff failed: wrong key %hhx", handoff.key);
+    if (handoff.f.key != PSH_SHAND) {
+        log_err("REPLACE[new daemon]: Stats handoff failed: wrong key %hhx", handoff.f.key);
         return 0;
     }
 
     // Current dlen for this is 200 bytes, it's unlikely we'll ever have so
     // many stats defined that we reach 64K, and this avoids potential buggy
     // situations where the old server asks us to malloc huge sizes below
-    if (!handoff.d || handoff.d > UINT16_MAX) {
-        log_err("REPLACE[new daemon]: Stats handoff failed: bad data length %" PRIu32, handoff.d);
+    if (!handoff.f.d || handoff.f.d > UINT16_MAX) {
+        log_err("REPLACE[new daemon]: Stats handoff failed: bad data length %" PRIu32, handoff.f.d);
         return 0;
     }
 
-    const size_t total = handoff.d;
+    const size_t total = handoff.f.d;
     void* raw_data = xmalloc(total);
     char* raw_char = raw_data;
     size_t done = 0;

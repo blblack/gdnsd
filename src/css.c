@@ -187,9 +187,9 @@ static bool respond_blocking_ack(struct css_conn* c)
 {
     gdnsd_assume(c->css);
     gdnsd_assert(c->state == WAITING_SERVER);
-    c->wbuf.key = RESP_ACK;
+    c->wbuf.f.key = RESP_ACK;
     csbuf_set_v(&c->wbuf, 0);
-    c->wbuf.d = 0;
+    c->wbuf.f.d = 0;
     c->state = WRITING_RESP;
     ssize_t pktlen = send(c->fd, c->wbuf.raw, 8, 0);
     if (pktlen != 8) {
@@ -319,9 +319,9 @@ static void respond(struct css_conn* c, const char key, const uint32_t v, const 
     gdnsd_assume(v <= 0xFFFFFF);
     gdnsd_assume(!data || !send_fds); // we don't support setting both
 
-    c->wbuf.key = key;
+    c->wbuf.f.key = key;
     csbuf_set_v(&c->wbuf, v);
-    c->wbuf.d = d;
+    c->wbuf.f.d = d;
     c->state = WRITING_RESP;
     if (data) {
         c->data = data;
@@ -694,7 +694,7 @@ static void handle_req_repl(struct css_conn* c, struct css* css)
 F_NONNULL
 static void handle_req_tak1(struct css_conn* c, struct css* css)
 {
-    const pid_t take_pid = (pid_t)c->rbuf.d;
+    const pid_t take_pid = (pid_t)c->rbuf.f.d;
     if (css->replacement_pid && css->replacement_pid != take_pid) {
         log_warn("REPLACE[old daemon]: Denying takeover notification from PID %li while replace is already in progress with PID %li", (long)take_pid, (long)css->replacement_pid);
         // could argue for LATR or FAIL here, but currently the new daemon doesn't wait and retry anyways
@@ -725,7 +725,7 @@ static void log_illegal_takeover(const char phase, const long take_pid, const lo
 F_NONNULL
 static void handle_req_tak2(struct css_conn* c, const struct css* css)
 {
-    const pid_t take_pid = (pid_t)c->rbuf.d;
+    const pid_t take_pid = (pid_t)c->rbuf.f.d;
     if (!css->replacement_pid || take_pid != css->replacement_pid || c != css->replace_conn_dmn) {
         log_illegal_takeover('2', (long)take_pid, (long)css->replacement_pid);
         respond(c, RESP_FAIL, 0, 0, NULL, false);
@@ -739,7 +739,7 @@ static void handle_req_tak2(struct css_conn* c, const struct css* css)
 F_NONNULL
 static void handle_req_take(struct css_conn* c, struct css* css)
 {
-    const pid_t take_pid = (pid_t)c->rbuf.d;
+    const pid_t take_pid = (pid_t)c->rbuf.f.d;
     if (!css->replacement_pid || take_pid != css->replacement_pid || c != css->replace_conn_dmn) {
         log_illegal_takeover('3', (long)take_pid, (long)css->replacement_pid);
         respond(c, RESP_FAIL, 0, 0, NULL, false);
@@ -790,7 +790,7 @@ static void css_conn_read(struct ev_loop* loop, ev_io* w, int revents V_UNUSED)
     if (c->state == READING_DATA) {
         // we'd switch below if more than one case, but REQ_CHAL is the only
         // key that causes READING_DATA so far.
-        gdnsd_assert(c->rbuf.key == REQ_CHAL);
+        gdnsd_assert(c->rbuf.f.key == REQ_CHAL);
         recv_challenge_data(loop, w, c, css);
         return;
     }
@@ -808,7 +808,7 @@ static void css_conn_read(struct ev_loop* loop, ev_io* w, int revents V_UNUSED)
     }
 
     // If this is TCP, check perms and explicitly RESP_DENY if warranted
-    if (c->ctl_addr && !tcp_req_allowed(c->ctl_addr, c->rbuf.key)) {
+    if (c->ctl_addr && !tcp_req_allowed(c->ctl_addr, c->rbuf.f.key)) {
         ev_io_stop(loop, w);
         c->state = WAITING_SERVER;
         respond(c, RESP_DENY, 0, 0, NULL, false);
@@ -818,9 +818,9 @@ static void css_conn_read(struct ev_loop* loop, ev_io* w, int revents V_UNUSED)
     // REQ_CHAL is the only case so far where the client sends data after the
     // 8-byte standard request, using "d" as the raw data length and "v" as the
     // count of challenges sent in the data.
-    if (c->rbuf.key == REQ_CHAL) {
+    if (c->rbuf.f.key == REQ_CHAL) {
         const unsigned count = csbuf_get_v(&c->rbuf);
-        const unsigned dlen = c->rbuf.d;
+        const unsigned dlen = c->rbuf.f.d;
         if (!count || count > CHAL_MAX_COUNT || !dlen || dlen > CHAL_MAX_DLEN) {
             log_err("Challenge request has illegal sizes (%u count, %u data), closing", count, dlen);
             css_conn_cleanup(c);
@@ -842,7 +842,7 @@ static void css_conn_read(struct ev_loop* loop, ev_io* w, int revents V_UNUSED)
     char* stats_msg;
     char* states_msg;
 
-    switch (c->rbuf.key) {
+    switch (c->rbuf.f.key) {
     case REQ_INFO:
         respond(c, RESP_ACK, css->status_v, css->status_d, NULL, false);
         break;
@@ -887,7 +887,7 @@ static void css_conn_read(struct ev_loop* loop, ev_io* w, int revents V_UNUSED)
         handle_req_take(c, css);
         break;
     default:
-        log_err("Unknown request type %hhx from control socket", (uint8_t)c->rbuf.key);
+        log_err("Unknown request type %hhx from control socket", (uint8_t)c->rbuf.f.key);
         respond(c, RESP_UNK, 0, 0, NULL, false);
     }
 }
@@ -1121,8 +1121,8 @@ struct css* css_new(const char* argv0, struct socks_cfg* socks_cfg, struct csc**
         union csbuf req;
         union csbuf resp;
         memset(&req, 0, sizeof(req));
-        req.key = REQ_TAKE;
-        req.d = (uint32_t)getpid();
+        req.f.key = REQ_TAKE;
+        req.f.d = (uint32_t)getpid();
         int* resp_fds = NULL;
         const size_t fds_recvd = csc_txn_getfds(csc, &req, &resp, &resp_fds);
         gdnsd_assume(fds_recvd >= 2U);
@@ -1223,9 +1223,9 @@ void css_send_stats_handoff(const struct css* css)
 
     union csbuf handoff;
     memset(&handoff, 0, sizeof(handoff));
-    handoff.key = PSH_SHAND;
+    handoff.f.key = PSH_SHAND;
     csbuf_set_v(&handoff, 0);
-    handoff.d = (uint32_t)dlen;
+    handoff.f.d = (uint32_t)dlen;
     ssize_t pktlen = send(c->fd, handoff.raw, 8, 0);
     if (pktlen != 8) {
         log_err("REPLACE[old daemon]: Stats handoff failed: blocking control socket write of 8 bytes failed with retval %zi: %s", pktlen, logf_errno());
