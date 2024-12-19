@@ -92,8 +92,8 @@ static void ntree_dump_rec_sub(const struct ntree* tree, const unsigned bitdepth
         struct anysin tempsin;
         memset(&tempsin, 0, sizeof(tempsin));
         tempsin.len = sizeof(struct sockaddr_in6);
-        tempsin.sa.sa_family = AF_INET6;
-        memcpy(&tempsin.sin6.sin6_addr, &ipv6, sizeof(tempsin.sin6.sin6_addr));
+        tempsin.s.sa.sa_family = AF_INET6;
+        memcpy(&tempsin.s.sin6.sin6_addr, &ipv6, sizeof(tempsin.s.sin6.sin6_addr));
         log_debug("%s/%u -> %u", logf_anysin_noport(&tempsin), 128U - bitdepth, NN_GET_DCLIST(val));
     } else {
         gdnsd_assume(bitdepth);
@@ -222,18 +222,18 @@ static unsigned ntree_lookup_inner(const struct ntree* tree, const struct anysin
 {
     unsigned rv;
 
-    if (client_addr->sa.sa_family == AF_INET) {
-        rv = ntree_lookup_v4(tree, ntohl(client_addr->sin4.sin_addr.s_addr), scope_mask);
+    if (client_addr->s.sa.sa_family == AF_INET) {
+        rv = ntree_lookup_v4(tree, ntohl(client_addr->s.sin4.sin_addr.s_addr), scope_mask);
     } else {
-        gdnsd_assume(client_addr->sa.sa_family == AF_INET6);
+        gdnsd_assume(client_addr->s.sa.sa_family == AF_INET6);
         unsigned mask_adj = 0; // for v4-like conversions...
-        const uint32_t ipv4 = v6_v4fixup(client_addr->sin6.sin6_addr.s6_addr, &mask_adj);
+        const uint32_t ipv4 = v6_v4fixup(client_addr->s.sin6.sin6_addr.s6_addr, &mask_adj);
         if (mask_adj) {
             unsigned temp_mask;
             rv = ntree_lookup_v4(tree, ipv4, &temp_mask);
             *scope_mask = temp_mask + mask_adj;
         } else {
-            rv = ntree_lookup_v6(tree, client_addr->sin6.sin6_addr.s6_addr, scope_mask);
+            rv = ntree_lookup_v6(tree, client_addr->s.sin6.sin6_addr.s6_addr, scope_mask);
         }
     }
 

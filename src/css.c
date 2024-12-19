@@ -965,7 +965,7 @@ static void socks_import_fd(const struct socks_cfg* socks_cfg, const int fd)
     memset(&fd_sin, 0, sizeof(fd_sin));
     fd_sin.len = GDNSD_ANYSIN_MAXLEN;
 
-    if (getsockname(fd, &fd_sin.sa, &fd_sin.len) || fd_sin.len > GDNSD_ANYSIN_MAXLEN) {
+    if (getsockname(fd, &fd_sin.s.sa, &fd_sin.len) || fd_sin.len > GDNSD_ANYSIN_MAXLEN) {
         if (errno == EBADF)
             log_err("REPLACE[new daemon]: Socket handoff: Ignoring invalid file descriptor %i", fd);
         else if (fd_sin.len > GDNSD_ANYSIN_MAXLEN)
@@ -1021,13 +1021,13 @@ static void socks_import_fds(const struct socks_cfg* socks_cfg, const int* fds, 
 F_NONNULL F_WUNUSED
 static int make_tcp_listener_fd(const struct anysin* addr)
 {
-    const int fd = socket(addr->sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
+    const int fd = socket(addr->s.sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
     if (fd < 0)
         log_fatal("Failed to create TCP control socket: %s", logf_errno());
     sockopt_bool_fatal(TCP, addr, fd, SOL_SOCKET, SO_REUSEADDR, 1);
     sockopt_bool_fatal(TCP, addr, fd, SOL_SOCKET, SO_REUSEPORT, 1);
     sockopt_bool_fatal(TCP, addr, fd, SOL_TCP, TCP_NODELAY, 1);
-    if (bind(fd, &addr->sa, addr->len))
+    if (bind(fd, &addr->s.sa, addr->len))
         log_fatal("bind() of TCP control socket %s failed: %s", logf_anysin(addr), logf_errno());
     if (listen(fd, 100))
         log_fatal("Failed to listen() on control socket %s: %s", logf_anysin(addr), logf_errno());

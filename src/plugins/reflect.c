@@ -79,14 +79,14 @@ static gdnsd_sttl_t plugin_reflect_resolve(unsigned resnum, const unsigned qtype
     const unsigned qfam = (qtype == DNS_TYPE_A) ? AF_INET : AF_INET6;
 
     if (resnum == RESPONSE_BOTH || resnum == RESPONSE_DNS || (resnum == RESPONSE_BEST && !cinfo->edns_client_mask)) {
-        if (cinfo->dns_source.sa.sa_family == qfam) {
+        if (cinfo->dns_source.s.sa.sa_family == qfam) {
             gdnsd_result_add_anysin(result, &cinfo->dns_source);
             gdnsd_result_add_scope_mask(result, cinfo->edns_client_mask);
         }
     }
 
     if (cinfo->edns_client_mask && resnum != RESPONSE_DNS) {
-        if (cinfo->edns_client.sa.sa_family == qfam) {
+        if (cinfo->edns_client.s.sa.sa_family == qfam) {
             gdnsd_result_add_anysin(result, &cinfo->edns_client);
             gdnsd_result_add_scope_mask(result, cinfo->edns_client_mask);
         }

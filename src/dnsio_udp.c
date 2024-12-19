@@ -122,24 +122,24 @@ void dnsio_udp_init(const pid_t main_pid)
     sigdelset(&sigmask_notusr2, SIGUSR2);
 }
 
-static void udp_sock_opts_v4(const struct anysin* sa, const int sock V_UNUSED)
+static void udp_sock_opts_v4(const struct anysin* asp, const int sock V_UNUSED)
 {
 #if defined IP_MTU_DISCOVER && defined IP_PMTUDISC_DONT
 #  if defined IP_PMTUDISC_OMIT
-    if (sockopt_int_warn(UDP, sa, sock, SOL_IP, IP_MTU_DISCOVER, IP_PMTUDISC_OMIT))
+    if (sockopt_int_warn(UDP, asp, sock, SOL_IP, IP_MTU_DISCOVER, IP_PMTUDISC_OMIT))
 #  endif
-        sockopt_int_fatal(UDP, sa, sock, SOL_IP, IP_MTU_DISCOVER, IP_PMTUDISC_DONT);
+        sockopt_int_fatal(UDP, asp, sock, SOL_IP, IP_MTU_DISCOVER, IP_PMTUDISC_DONT);
 #elif defined IP_DONTFRAG
-    sockopt_bool_fatal(UDP, sa, sock, SOL_IP, IP_DONTFRAG, 0);
+    sockopt_bool_fatal(UDP, asp, sock, SOL_IP, IP_DONTFRAG, 0);
 #else
 #   error IPv4 not supported: cannot disable DF/PMTUDISC
 #endif
 
-    if (gdnsd_anysin_is_anyaddr(sa)) {
+    if (gdnsd_anysin_is_anyaddr(asp)) {
 #if defined IP_PKTINFO
-        sockopt_bool_fatal(UDP, sa, sock, SOL_IP, IP_PKTINFO, 1);
+        sockopt_bool_fatal(UDP, asp, sock, SOL_IP, IP_PKTINFO, 1);
 #elif defined IP_RECVDSTADDR
-        sockopt_bool_fatal(UDP, sa, sock, SOL_IP, IP_RECVDSTADDR, 1);
+        sockopt_bool_fatal(UDP, asp, sock, SOL_IP, IP_RECVDSTADDR, 1);
 #else
         log_fatal("IPv4 any-address '0.0.0.0' not supported for DNS listening on your platform (no IP_PKTINFO or IP_RECVDSTADDR)");
 #endif
@@ -147,7 +147,7 @@ static void udp_sock_opts_v4(const struct anysin* sa, const int sock V_UNUSED)
 
     // This is just a latency hack, it's not necessary for correct operation
 #if defined IP_TOS && defined IPTOS_LOWDELAY
-    sockopt_int_warn(UDP, sa, sock, SOL_IP, IP_TOS, IPTOS_LOWDELAY);
+    sockopt_int_warn(UDP, asp, sock, SOL_IP, IP_TOS, IPTOS_LOWDELAY);
 #endif
 }
 
@@ -155,12 +155,12 @@ static void udp_sock_opts_v4(const struct anysin* sa, const int sock V_UNUSED)
 #define IPV6_MIN_MTU 1280
 #endif
 
-static void udp_sock_opts_v6(const struct anysin* sa, const int sock)
+static void udp_sock_opts_v6(const struct anysin* asp, const int sock)
 {
-    sockopt_bool_fatal(UDP, sa, sock, SOL_IPV6, IPV6_V6ONLY, 1);
+    sockopt_bool_fatal(UDP, asp, sock, SOL_IPV6, IPV6_V6ONLY, 1);
 
 #if defined IPV6_USE_MIN_MTU
-    sockopt_bool_fatal(UDP, sa, sock, SOL_IPV6, IPV6_USE_MIN_MTU, 1);
+    sockopt_bool_fatal(UDP, asp, sock, SOL_IPV6, IPV6_USE_MIN_MTU, 1);
 #elif defined IPV6_MTU
     // This sockopt doesn't have matching get+set; get needs a live
     // connection and reports the connection's path MTU, so we have to just
@@ -174,9 +174,9 @@ static void udp_sock_opts_v6(const struct anysin* sa, const int sock)
 
 #if defined IPV6_MTU_DISCOVER && defined IPV6_PMTUDISC_DONT
 #  if defined IPV6_PMTUDISC_OMIT
-    if (sockopt_int_warn(UDP, sa, sock, SOL_IPV6, IPV6_MTU_DISCOVER, IPV6_PMTUDISC_OMIT))
+    if (sockopt_int_warn(UDP, asp, sock, SOL_IPV6, IPV6_MTU_DISCOVER, IPV6_PMTUDISC_OMIT))
 #  endif
-        sockopt_int_fatal(UDP, sa, sock, SOL_IPV6, IPV6_MTU_DISCOVER, IPV6_PMTUDISC_DONT);
+        sockopt_int_fatal(UDP, asp, sock, SOL_IPV6, IPV6_MTU_DISCOVER, IPV6_PMTUDISC_DONT);
 #elif defined IPV6_DONTFRAG
     // There have been reports in https://github.com/gdnsd/gdnsd/issues/115 of
     // the IPV6_DONTFRAG setsockopt failing within the context of some
@@ -186,19 +186,19 @@ static void udp_sock_opts_v6(const struct anysin* sa, const int sock)
     // against bad defaults.
     // Therefore, we'll merely warn rather than fatal on this, in hopes it
     // clears up whatever's wrong with these OpenVZ environments.
-    sockopt_int_warn(UDP, sa, sock, SOL_IPV6, IPV6_DONTFRAG, 0);
+    sockopt_int_warn(UDP, asp, sock, SOL_IPV6, IPV6_DONTFRAG, 0);
 #endif
 
 #if defined IPV6_RECVPKTINFO
-    sockopt_bool_fatal(UDP, sa, sock, SOL_IPV6, IPV6_RECVPKTINFO, 1);
+    sockopt_bool_fatal(UDP, asp, sock, SOL_IPV6, IPV6_RECVPKTINFO, 1);
 #elif defined IPV6_PKTINFO
-    sockopt_bool_fatal(UDP, sa, sock, SOL_IPV6, IPV6_PKTINFO, 1);
+    sockopt_bool_fatal(UDP, asp, sock, SOL_IPV6, IPV6_PKTINFO, 1);
 #else
 #   error IPv6 not supported: cannot set IPV6_RECVPKTINFO or IPV6_PKTINFO
 #endif
 
 #if defined IPV6_TCLASS && defined IPTOS_LOWDELAY
-    sockopt_int_warn(UDP, sa, sock, SOL_IPV6, IPV6_TCLASS, IPTOS_LOWDELAY);
+    sockopt_int_warn(UDP, asp, sock, SOL_IPV6, IPV6_TCLASS, IPTOS_LOWDELAY);
 #endif
 }
 
@@ -207,41 +207,41 @@ void udp_sock_setup(struct dns_thread* t)
     const struct dns_addr* addrconf = t->ac;
     gdnsd_assume(addrconf);
 
-    const struct anysin* sa = &addrconf->addr;
+    const struct anysin* asp = &addrconf->addr;
 
-    const bool isv6 = sa->sa.sa_family == AF_INET6 ? true : false;
-    gdnsd_assert(isv6 || sa->sa.sa_family == AF_INET);
+    const bool isv6 = asp->s.sa.sa_family == AF_INET6 ? true : false;
+    gdnsd_assert(isv6 || asp->s.sa.sa_family == AF_INET);
 
     bool need_bind = false;
     if (t->sock == -1) { // not acquired via replace
-        t->sock = socket(sa->sa.sa_family, SOCK_DGRAM | SOCK_CLOEXEC, IPPROTO_UDP);
+        t->sock = socket(asp->s.sa.sa_family, SOCK_DGRAM | SOCK_CLOEXEC, IPPROTO_UDP);
         if (t->sock == -1)
             log_fatal("Failed to create IPv%c UDP socket: %s", isv6 ? '6' : '4', logf_errno());
         need_bind = true;
     }
 
-    sockopt_bool_fatal(UDP, sa, t->sock, SOL_SOCKET, SO_REUSEADDR, 1);
+    sockopt_bool_fatal(UDP, asp, t->sock, SOL_SOCKET, SO_REUSEADDR, 1);
     // We need SO_REUSEPORT for functional reasons
-    sockopt_bool_fatal(UDP, sa, t->sock, SOL_SOCKET, SO_REUSEPORT, 1);
+    sockopt_bool_fatal(UDP, asp, t->sock, SOL_SOCKET, SO_REUSEPORT, 1);
 #ifdef SO_REUSEPORT_LB
     // If BSD's SO_REUSEPORT_LB is available, try to upgrade to that for better
     // balancing, but merely warn on failure because it's new and there could
     // be a compiletime vs runtime diff.
-    sockopt_bool_warn(UDP, sa, t->sock, SOL_SOCKET, SO_REUSEPORT_LB, 1);
+    sockopt_bool_warn(UDP, asp, t->sock, SOL_SOCKET, SO_REUSEPORT_LB, 1);
 #endif
 
     if (addrconf->udp_rcvbuf)
-        sockopt_int_fatal(UDP, sa, t->sock, SOL_SOCKET, SO_RCVBUF, (int)addrconf->udp_rcvbuf);
+        sockopt_int_fatal(UDP, asp, t->sock, SOL_SOCKET, SO_RCVBUF, (int)addrconf->udp_rcvbuf);
     if (addrconf->udp_sndbuf)
-        sockopt_int_fatal(UDP, sa, t->sock, SOL_SOCKET, SO_SNDBUF, (int)addrconf->udp_sndbuf);
+        sockopt_int_fatal(UDP, asp, t->sock, SOL_SOCKET, SO_SNDBUF, (int)addrconf->udp_sndbuf);
 
     if (isv6)
-        udp_sock_opts_v6(sa, t->sock);
+        udp_sock_opts_v6(asp, t->sock);
     else
-        udp_sock_opts_v4(sa, t->sock);
+        udp_sock_opts_v4(asp, t->sock);
 
     if (need_bind)
-        socks_bind_sock("UDP DNS", t->sock, sa);
+        socks_bind_sock("UDP DNS", t->sock, asp);
 }
 
 static unsigned get_pgsz(void)
@@ -323,13 +323,13 @@ static void process_mmsgs(const int fd, struct dnsp_ctx* pctx, struct dns_stats*
     for (unsigned i = 0; i < pkts; i++) {
         struct anysin* asp = dgrams[i].msg_hdr.msg_name;
         struct iovec* iop = &dgrams[i].msg_hdr.msg_iov[0];
-        if (unlikely((asp->sa.sa_family == AF_INET && !asp->sin4.sin_port)
-                     || (asp->sa.sa_family == AF_INET6 && !asp->sin6.sin6_port))) {
+        if (unlikely((asp->s.sa.sa_family == AF_INET && !asp->s.sin4.sin_port)
+                     || (asp->s.sa.sa_family == AF_INET6 && !asp->s.sin6.sin6_port))) {
             // immediately fail with no log output for packets with source port zero
             stats_own_inc(&stats->dropped);
             iop->iov_len = 0; // skip send, same as if process_dns_query() rejected it
         } else {
-            if (asp->sa.sa_family == AF_INET6)
+            if (asp->s.sa.sa_family == AF_INET6)
                 ipv6_pktinfo_ifindex_fixup(&dgrams[i].msg_hdr);
             asp->len = dgrams[i].msg_hdr.msg_namelen;
             iop->iov_len = process_dns_query(pctx, asp, iop->iov_base, NULL, dgrams[i].msg_len);
@@ -399,7 +399,7 @@ static void mainloop_mmsg(const int fd, struct dnsp_ctx* pctx, struct dns_stats*
     struct mmsghdr dgrams[MMSG_WIDTH];
     struct {
         struct iovec iov[1];
-        struct anysin sa;
+        struct anysin as;
         union {
             struct cmsghdr chdr;
             char cbuf[CMSG_BUFSIZE];
@@ -412,7 +412,7 @@ static void mainloop_mmsg(const int fd, struct dnsp_ctx* pctx, struct dns_stats*
         msgdata[i].iov[0].iov_base       = &bufs[i * max_rounded];
         dgrams[i].msg_hdr.msg_iov        = msgdata[i].iov;
         dgrams[i].msg_hdr.msg_iovlen     = 1;
-        dgrams[i].msg_hdr.msg_name       = &msgdata[i].sa.sa;
+        dgrams[i].msg_hdr.msg_name       = &msgdata[i].as.s.sa;
         dgrams[i].msg_hdr.msg_control    = use_cmsg ? msgdata[i].cmsg_buf.cbuf : NULL;
     }
 
@@ -454,10 +454,10 @@ static void mainloop_mmsg(const int fd, struct dnsp_ctx* pctx, struct dns_stats*
 }
 
 F_NONNULL F_PURE
-static bool is_ipv6(const struct anysin* sa)
+static bool is_ipv6(const struct anysin* asp)
 {
-    gdnsd_assume(sa->sa.sa_family == AF_INET6 || sa->sa.sa_family == AF_INET);
-    return (sa->sa.sa_family == AF_INET6);
+    gdnsd_assume(asp->s.sa.sa_family == AF_INET6 || asp->s.sa.sa_family == AF_INET);
+    return (asp->s.sa.sa_family == AF_INET6);
 }
 
 void* dnsio_udp_start(void* thread_asvoid)
@@ -478,7 +478,7 @@ void* dnsio_udp_start(void* thread_asvoid)
 
     grcu_register_thread();
 
-    const bool use_cmsg = addrconf->addr.sa.sa_family == AF_INET6
+    const bool use_cmsg = addrconf->addr.s.sa.sa_family == AF_INET6
                           ? true
                           : gdnsd_anysin_is_anyaddr(&addrconf->addr);
 

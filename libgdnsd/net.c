@@ -115,9 +115,9 @@ int gdnsd_sockopt_idem_int_(struct gso_args args)
 #endif
     if (getsockopt(args.sock, args.level, args.optname, &current, &s_current)) {
         if (args.fatal)
-            log_fatal("getsockopt(%s:%s, %s, %s) failed: %s", args.proto_str, logf_anysin(args.sa), args.level_str, args.optname_str, logf_errno());
+            log_fatal("getsockopt(%s:%s, %s, %s) failed: %s", args.proto_str, logf_anysin(args.asp), args.level_str, args.optname_str, logf_errno());
         else
-            log_warn("getsockopt(%s:%s, %s, %s) failed: %s", args.proto_str, logf_anysin(args.sa), args.level_str, args.optname_str, logf_errno());
+            log_warn("getsockopt(%s:%s, %s, %s) failed: %s", args.proto_str, logf_anysin(args.asp), args.level_str, args.optname_str, logf_errno());
         return -1;
     } else {
         bool ok;
@@ -127,9 +127,9 @@ int gdnsd_sockopt_idem_int_(struct gso_args args)
             ok = (current == compare);
         if (!ok && setsockopt(args.sock, args.level, args.optname, &args.wantval, sizeof(args.wantval))) {
             if (args.fatal)
-                log_fatal("setsockopt(%s:%s, %s, %s, %i) failed: %s", args.proto_str, logf_anysin(args.sa), args.level_str, args.optname_str, args.wantval, logf_errno());
+                log_fatal("setsockopt(%s:%s, %s, %s, %i) failed: %s", args.proto_str, logf_anysin(args.asp), args.level_str, args.optname_str, args.wantval, logf_errno());
             else
-                log_warn("setsockopt(%s:%s, %s, %s, %i) failed: %s", args.proto_str, logf_anysin(args.sa), args.level_str, args.optname_str, args.wantval, logf_errno());
+                log_warn("setsockopt(%s:%s, %s, %s, %i) failed: %s", args.proto_str, logf_anysin(args.asp), args.level_str, args.optname_str, args.wantval, logf_errno());
             return -1;
         }
     }
@@ -169,7 +169,7 @@ int gdnsd_anysin_getaddrinfo(const char* addr_txt, const char* port_txt, struct 
         //  and also to guarantee a zero port if port_txt is NULL
         //  (getaddrinfo() itself docs that it may be uninitialized)
         memset(result, 0, sizeof(*result));
-        memcpy(&result->sa, ainfo->ai_addr, ainfo->ai_addrlen);
+        memcpy(&result->s.sa, ainfo->ai_addr, ainfo->ai_addrlen);
         result->len = ainfo->ai_addrlen;
     }
 
@@ -224,11 +224,11 @@ int gdnsd_anysin_fromstr(const char* addr_port_text, const unsigned def_port, st
 
     // set default port
     if (!addr_err && !port && def_port) {
-        if (result->sa.sa_family == AF_INET) {
-            result->sin4.sin_port = htons(def_port);
+        if (result->s.sa.sa_family == AF_INET) {
+            result->s.sin4.sin_port = htons(def_port);
         } else {
-            gdnsd_assert(result->sa.sa_family == AF_INET6);
-            result->sin6.sin6_port = htons(def_port);
+            gdnsd_assert(result->s.sa.sa_family == AF_INET6);
+            result->s.sin6.sin6_port = htons(def_port);
         }
     }
 
@@ -236,14 +236,14 @@ int gdnsd_anysin_fromstr(const char* addr_port_text, const unsigned def_port, st
     return addr_err;
 }
 
-bool gdnsd_anysin_is_anyaddr(const struct anysin* sa)
+bool gdnsd_anysin_is_anyaddr(const struct anysin* asp)
 {
-    gdnsd_assert(sa->sa.sa_family == AF_INET || sa->sa.sa_family == AF_INET6);
+    gdnsd_assert(asp->s.sa.sa_family == AF_INET || asp->s.sa.sa_family == AF_INET6);
 
-    if (sa->sa.sa_family == AF_INET6) {
-        if (!memcmp(&sa->sin6.sin6_addr.s6_addr, &in6addr_any.s6_addr, sizeof(in6addr_any.s6_addr)))
+    if (asp->s.sa.sa_family == AF_INET6) {
+        if (!memcmp(&asp->s.sin6.sin6_addr.s6_addr, &in6addr_any.s6_addr, sizeof(in6addr_any.s6_addr)))
             return true;
-    } else if (sa->sin4.sin_addr.s_addr == INADDR_ANY) {
+    } else if (asp->s.sin4.sin_addr.s_addr == INADDR_ANY) {
         return true;
     }
 
@@ -252,7 +252,7 @@ bool gdnsd_anysin_is_anyaddr(const struct anysin* sa)
 
 static const char generic_nullstr[] = "(null)";
 
-int gdnsd_anysin2str(const struct anysin* sa, char* buf)
+int gdnsd_anysin2str(const struct anysin* asp, char* buf)
 {
     int name_err = 0;
     buf[0] = 0;
@@ -261,10 +261,10 @@ int gdnsd_anysin2str(const struct anysin* sa, char* buf)
     char servbuf[6];
     hostbuf[0] = servbuf[0] = 0; // JIC getnameinfo leaves them un-init
 
-    if (sa) {
-        name_err = getnameinfo(&sa->sa, sa->len, hostbuf, INET6_ADDRSTRLEN + 32, servbuf, 6, NI_NUMERICHOST | NI_NUMERICSERV);
+    if (asp) {
+        name_err = getnameinfo(&asp->s.sa, asp->len, hostbuf, INET6_ADDRSTRLEN + 32, servbuf, 6, NI_NUMERICHOST | NI_NUMERICSERV);
         if (!name_err) {
-            if (sa->sa.sa_family == AF_INET6)
+            if (asp->s.sa.sa_family == AF_INET6)
                 snprintf(buf, GDNSD_ANYSIN_MAXSTR, "[%s]:%s", hostbuf, servbuf);
             else
                 snprintf(buf, GDNSD_ANYSIN_MAXSTR, "%s:%s", hostbuf, servbuf);
@@ -276,10 +276,10 @@ int gdnsd_anysin2str(const struct anysin* sa, char* buf)
     return name_err;
 }
 
-const char* gdnsd_logf_anysin(const struct anysin* sa)
+const char* gdnsd_logf_anysin(const struct anysin* asp)
 {
     char tmpbuf[GDNSD_ANYSIN_MAXSTR];
-    int name_err = gdnsd_anysin2str(sa, tmpbuf);
+    int name_err = gdnsd_anysin2str(asp, tmpbuf);
     if (name_err)
         return gai_strerror(name_err); // This might be confusing...
 
@@ -290,23 +290,23 @@ const char* gdnsd_logf_anysin(const struct anysin* sa)
     return buf;
 }
 
-int gdnsd_anysin2str_noport(const struct anysin* sa, char* buf)
+int gdnsd_anysin2str_noport(const struct anysin* asp, char* buf)
 {
     int name_err = 0;
     buf[0] = 0;
 
-    if (sa)
-        name_err = getnameinfo(&sa->sa, sa->len, buf, GDNSD_ANYSIN_MAXSTR, NULL, 0, NI_NUMERICHOST);
+    if (asp)
+        name_err = getnameinfo(&asp->s.sa, asp->len, buf, GDNSD_ANYSIN_MAXSTR, NULL, 0, NI_NUMERICHOST);
     else
         memcpy(buf, generic_nullstr, sizeof(generic_nullstr));
 
     return name_err;
 }
 
-const char* gdnsd_logf_anysin_noport(const struct anysin* sa)
+const char* gdnsd_logf_anysin_noport(const struct anysin* asp)
 {
     char tmpbuf[GDNSD_ANYSIN_MAXSTR];
-    int name_err = gdnsd_anysin2str_noport(sa, tmpbuf);
+    int name_err = gdnsd_anysin2str_noport(asp, tmpbuf);
     if (name_err)
         return gai_strerror(name_err); // This might be confusing...
 
@@ -318,14 +318,14 @@ const char* gdnsd_logf_anysin_noport(const struct anysin* sa)
 
 int gdnsd_anysin_cmp(const struct anysin* a, const struct anysin* b)
 {
-    if (a->len == b->len && a->sa.sa_family == b->sa.sa_family) {
-        if (a->sa.sa_family == AF_INET
-                && a->sin4.sin_addr.s_addr == b->sin4.sin_addr.s_addr
-                && a->sin4.sin_port == b->sin4.sin_port)
+    if (a->len == b->len && a->s.sa.sa_family == b->s.sa.sa_family) {
+        if (a->s.sa.sa_family == AF_INET
+                && a->s.sin4.sin_addr.s_addr == b->s.sin4.sin_addr.s_addr
+                && a->s.sin4.sin_port == b->s.sin4.sin_port)
             return 0;
-        if (a->sa.sa_family == AF_INET6
-                && !memcmp(a->sin6.sin6_addr.s6_addr, b->sin6.sin6_addr.s6_addr, 16U)
-                && a->sin6.sin6_port == b->sin6.sin6_port)
+        if (a->s.sa.sa_family == AF_INET6
+                && !memcmp(a->s.sin6.sin6_addr.s6_addr, b->s.sin6.sin6_addr.s6_addr, 16U)
+                && a->s.sin6.sin6_port == b->s.sin6.sin6_port)
             return 0;
     }
 

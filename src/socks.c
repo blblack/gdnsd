@@ -156,11 +156,11 @@ static void process_listen_hashentry(struct dns_addr* addrconf, const char* lspe
     make_addr(lspec, addrconf->dns_port, &addrconf->addr);
     if (addrconf->tcp_proxy) {
         unsigned lport;
-        if (addrconf->addr.sa.sa_family == AF_INET) {
-            lport = addrconf->addr.sin4.sin_port;
+        if (addrconf->addr.s.sa.sa_family == AF_INET) {
+            lport = addrconf->addr.s.sin4.sin_port;
         } else {
-            gdnsd_assert(addrconf->addr.sa.sa_family == AF_INET6);
-            lport = addrconf->addr.sin6.sin6_port;
+            gdnsd_assert(addrconf->addr.s.sa.sa_family == AF_INET6);
+            lport = addrconf->addr.s.sin6.sin6_port;
         }
         if (lport == 53U)
             log_fatal("Cannot configure tcp_proxy mode on port 53");
@@ -265,11 +265,11 @@ static void process_control_item(struct ctl_addr* item, const char* lspec, const
         log_fatal("Could not process tcp_control address spec '%s': %s", lspec, gai_strerror(addr_err));
 
     unsigned lport = 0;
-    if (addr->sa.sa_family == AF_INET) {
-        lport = addr->sin4.sin_port;
+    if (addr->s.sa.sa_family == AF_INET) {
+        lport = addr->s.sin4.sin_port;
     } else {
-        gdnsd_assert(addr->sa.sa_family == AF_INET6);
-        lport = addr->sin6.sin6_port;
+        gdnsd_assert(addr->s.sa.sa_family == AF_INET6);
+        lport = addr->s.sin6.sin6_port;
     }
     if (!lport)
         log_fatal("Could not process tcp_control address spec '%s': port number required", lspec);
@@ -350,19 +350,19 @@ struct socks_cfg* socks_conf_load(const vscf_data_t* cfg_root)
     return socks_cfg;
 }
 
-void socks_bind_sock(const char* desc, const int sock, const struct anysin* sa)
+void socks_bind_sock(const char* desc, const int sock, const struct anysin* asp)
 {
     int bind_errno = 0;
 
     // Immediate, simple success
-    if (!bind(sock, &sa->sa, sa->len))
+    if (!bind(sock, &asp->s.sa, asp->len))
         return;
     bind_errno = errno;
 
 #if defined IP_FREEBIND || (defined IP_BINDANY && defined IPV6_BINDANY) || defined SO_BINDANY
     // first bind() attempt failed.  in the case of non-ANY addresses, where
     // the OS has support for freebind/bindany, try it before failing hard
-    if (errno == EADDRNOTAVAIL && !gdnsd_anysin_is_anyaddr(sa)) {
+    if (errno == EADDRNOTAVAIL && !gdnsd_anysin_is_anyaddr(asp)) {
         const int opt_one = 1;
 
 # if defined IP_FREEBIND
@@ -372,7 +372,7 @@ void socks_bind_sock(const char* desc, const int sock, const struct anysin* sa)
         const char* bindtxt = "IP_FREEBIND";
 # elif defined IP_BINDANY && defined IPV6_BINDANY
         // FreeBSD, untested
-        const bool isv6 = sa->sa.sa_family == AF_INET6 ? true : false;
+        const bool isv6 = sa->s.sa.sa_family == AF_INET6 ? true : false;
         const int bindlev = isv6 ? IPPROTO_IPV6 : IPPROTO_IP;
         const int bindopt = isv6 ? IPV6_BINDANY : IP_BINDANY;
         const char* bindtxt = isv6 ? "IPV6_BINDANY" : "IP_BINDANY";
@@ -387,11 +387,11 @@ void socks_bind_sock(const char* desc, const int sock, const struct anysin* sa)
             // Don't even re-attempt the bind if we can't set the option, just
             // warn about the setsockopt() and fail out at the bottom with the
             // original errno from bind():
-            log_warn("Failed to set %s on %s socket %s: %s", bindtxt, desc, logf_anysin(sa), logf_errno());
+            log_warn("Failed to set %s on %s socket %s: %s", bindtxt, desc, logf_anysin(asp), logf_errno());
         } else {
-            if (!bind(sock, &sa->sa, sa->len)) {
+            if (!bind(sock, &asp->s.sa, asp->len)) {
                 // Success, after setting IP_FREEBIND or similar
-                log_warn("%s socket %s bound via %s, address may not (yet!) exist on the host", desc, logf_anysin(sa), bindtxt);
+                log_warn("%s socket %s bound via %s, address may not (yet!) exist on the host", desc, logf_anysin(asp), bindtxt);
                 return;
             }
             // Second attempt failed, update bind_errno and fail out below
@@ -402,7 +402,7 @@ void socks_bind_sock(const char* desc, const int sock, const struct anysin* sa)
 
     // If initial bind attempt failed, and the above freebind stuff either
     // failed or isn't available, fail hard:
-    log_fatal("bind() failed for %s socket %s: %s", desc, logf_anysin(sa), logf_strerror(bind_errno));
+    log_fatal("bind() failed for %s socket %s: %s", desc, logf_anysin(asp), logf_strerror(bind_errno));
 }
 
 void socks_dns_lsocks_init(const struct socks_cfg* socks_cfg)

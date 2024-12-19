@@ -94,26 +94,26 @@ static bool nets_parse(const vscf_data_t* nets_cfg, struct dclists* dclists, con
         uint8_t ipv6[16];
 
         // now store the anysin data into struct net
-        if (tempsin.sa.sa_family == AF_INET6) {
-            mask = ntohs(tempsin.sin6.sin6_port);
+        if (tempsin.s.sa.sa_family == AF_INET6) {
+            mask = ntohs(tempsin.s.sin6.sin6_port);
             if (mask > 128) {
                 log_err("plugin_geoip: map '%s': nets entry '%s/%s': illegal IPv6 mask (>128)", map_name, net_str, mask_str);
                 return true;
             }
-            memcpy(ipv6, tempsin.sin6.sin6_addr.s6_addr, 16);
+            memcpy(ipv6, tempsin.s.sin6.sin6_addr.s6_addr, 16);
             if (check_v4_issues(ipv6, mask)) {
                 log_err("plugin_geoip: map '%s': 'nets' entry '%s/%s' covers illegal IPv4-like space, see the documentation for more info", map_name, net_str, mask_str);
                 return true;
             }
         } else {
-            gdnsd_assume(tempsin.sa.sa_family == AF_INET);
-            mask = ntohs(tempsin.sin4.sin_port) + 96U;
+            gdnsd_assume(tempsin.s.sa.sa_family == AF_INET);
+            mask = ntohs(tempsin.s.sin4.sin_port) + 96U;
             if (mask > 128) {
                 log_err("plugin_geoip: map '%s': nets entry '%s/%s': illegal IPv4 mask (>32)", map_name, net_str, mask_str);
                 return true;
             }
             memset(ipv6, 0, 16);
-            memcpy(&ipv6[12], &tempsin.sin4.sin_addr.s_addr, 4);
+            memcpy(&ipv6[12], &tempsin.s.sin4.sin_addr.s_addr, 4);
         }
 
         // get dclist integer from rhs

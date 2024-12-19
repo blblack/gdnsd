@@ -134,9 +134,9 @@ static bool addr_setup(const char* addr_desc, unsigned klen V_UNUSED, vscf_data_
     const int addr_err = gdnsd_anysin_getaddrinfo(addr_txt, NULL, &as->addr);
     if (addr_err)
         log_fatal("plugin_multifo: resource %s (%s): failed to parse address '%s' for '%s': %s", resname, stanza, addr_txt, addr_desc, gai_strerror(addr_err));
-    if (ipv6 && as->addr.sa.sa_family != AF_INET6)
+    if (ipv6 && as->addr.s.sa.sa_family != AF_INET6)
         log_fatal("plugin_multifo: resource %s (%s): address '%s' for '%s' is not IPv6", resname, stanza, addr_txt, addr_desc);
-    else if (!ipv6 && as->addr.sa.sa_family != AF_INET)
+    else if (!ipv6 && as->addr.s.sa.sa_family != AF_INET)
         log_fatal("plugin_multifo: resource %s (%s): address '%s' for '%s' is not IPv4", resname, stanza, addr_txt, addr_desc);
 
     if (aset->num_svcs) {
@@ -257,11 +257,11 @@ static void config_auto(struct res* res, const char* stanza, vscf_data_t* auto_c
     if (addr_err)
         log_fatal("plugin_multifo: resource %s (%s): failed to parse address '%s' for '%s': %s", res->name, stanza, addr_txt, first_name, gai_strerror(addr_err));
 
-    if (temp_asin.sa.sa_family == AF_INET6) {
+    if (temp_asin.s.sa.sa_family == AF_INET6) {
         res->aset_v6 = xcalloc(sizeof(*res->aset_v6));
         config_addrs(res->name, stanza, res->aset_v6, true, auto_cfg);
     } else {
-        gdnsd_assume(temp_asin.sa.sa_family == AF_INET);
+        gdnsd_assume(temp_asin.s.sa.sa_family == AF_INET);
         res->aset_v4 = xcalloc(sizeof(*res->aset_v4));
         config_addrs(res->name, stanza, res->aset_v4, false, auto_cfg);
     }

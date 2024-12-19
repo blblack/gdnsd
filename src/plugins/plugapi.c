@@ -77,15 +77,15 @@ void gdnsd_dyn_addr_max(unsigned v4, unsigned v6)
         addrlimit_v6 = v6;
 }
 
-void gdnsd_result_add_anysin(struct dyn_result* result, const struct anysin* sa)
+void gdnsd_result_add_anysin(struct dyn_result* result, const struct anysin* asp)
 {
     unsigned rrfixed;
     unsigned this_rr_rdlen;
-    if (sa->sa.sa_family == AF_INET6) {
+    if (asp->s.sa.sa_family == AF_INET6) {
         rrfixed = DNS_RRFIXED_AAAA;
         this_rr_rdlen = 16U;
     } else {
-        gdnsd_assert(sa->sa.sa_family == AF_INET);
+        gdnsd_assert(asp->s.sa.sa_family == AF_INET);
         rrfixed = DNS_RRFIXED_A;
         this_rr_rdlen = 4U;
     }
@@ -103,14 +103,14 @@ void gdnsd_result_add_anysin(struct dyn_result* result, const struct anysin* sa)
     gdnsd_put_una16(htons(this_rr_rdlen), &buf[offs]);
     offs += 2U;
 
-    if (sa->sa.sa_family == AF_INET6) {
+    if (asp->s.sa.sa_family == AF_INET6) {
         gdnsd_assert(result->count < addrlimit_v6);
-        memcpy(&buf[offs], sa->sin6.sin6_addr.s6_addr, 16U);
+        memcpy(&buf[offs], asp->s.sin6.sin6_addr.s6_addr, 16U);
         offs += 16U;
     } else {
-        gdnsd_assert(sa->sa.sa_family == AF_INET);
+        gdnsd_assert(asp->s.sa.sa_family == AF_INET);
         gdnsd_assert(result->count < addrlimit_v4);
-        memcpy(&buf[offs], &sa->sin4.sin_addr.s_addr, 4U);
+        memcpy(&buf[offs], &asp->s.sin4.sin_addr.s_addr, 4U);
         offs += 4U;
     }
 

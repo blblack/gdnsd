@@ -61,6 +61,6 @@ union proxy_hdr {
 // 1+: PROXY header was this many bytes (<= dlen), please skip past them
 // Note this mutates "sa", overwriting it with the client IP:port info
 // supplied by the PROXY protocol.
-size_t proxy_parse(struct anysin* sa, union proxy_hdr* hdrp, size_t dlen);
+size_t proxy_parse(struct anysin* asp, union proxy_hdr* hdrp, size_t dlen);
 
 #endif

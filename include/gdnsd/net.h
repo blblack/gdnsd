@@ -48,7 +48,7 @@ struct anysin {
         struct sockaddr_in6 sin6;
         struct sockaddr_in  sin4;
         struct sockaddr     sa;
-    };
+    } s;
     socklen_t len;
 };
 
@@ -93,7 +93,7 @@ int gdnsd_anysin_fromstr(const char* addr_port_text, const unsigned def_port, st
 
 // Check if the sockaddr is the V4 or V6 ANY-address (0.0.0.0, or ::)
 F_NONNULL F_PURE
-bool gdnsd_anysin_is_anyaddr(const struct anysin* sa);
+bool gdnsd_anysin_is_anyaddr(const struct anysin* asp);
 
 // Compare two struct anysin for exact equality of type, size, and sockaddr
 // struct contents (which in other words means: same family, address, and
@@ -112,20 +112,20 @@ int gdnsd_anysin_cmp(const struct anysin* a, const struct anysin* b);
 // note that buf *must* be pre-allocated to at least GDNSD_ANYSIN_MAXSTR bytes!
 // return value is from getaddrinfo() (0 for success, otherwise pass to gai_strerror())
 F_NONNULLX(2) F_COLD
-int gdnsd_anysin2str(const struct anysin* sa, char* buf);
+int gdnsd_anysin2str(const struct anysin* asp, char* buf);
 
 // convert just the address portion to ASCII in "buf"
 // NULL input results in the string "(null)"
 // note that buf *must* be pre-allocated to at least GDNSD_ANYSIN_MAXSTR bytes!
 // return value is from getaddrinfo() (0 for success, otherwise pass to gai_strerror())
 F_NONNULLX(2) F_COLD
-int gdnsd_anysin2str_noport(const struct anysin* sa, char* buf);
+int gdnsd_anysin2str_noport(const struct anysin* asp, char* buf);
 
 // Log-formatters for struct anysin + gdnsd_log_*(), which use the above...
 F_RETNN F_COLD
-const char* gdnsd_logf_anysin(const struct anysin* sa);
+const char* gdnsd_logf_anysin(const struct anysin* asp);
 F_RETNN F_COLD
-const char* gdnsd_logf_anysin_noport(const struct anysin* sa);
+const char* gdnsd_logf_anysin_noport(const struct anysin* asp);
 
 #define logf_anysin gdnsd_logf_anysin
 #define logf_anysin_noport gdnsd_logf_anysin_noport
@@ -141,23 +141,23 @@ struct gso_args {
     const int wantval;
     const bool fatal;
     const bool is_bool;
-    const struct anysin* sa;
+    const struct anysin* asp;
     const char* level_str;
     const char* optname_str;
     const char* proto_str;
 };
 int gdnsd_sockopt_idem_int_(struct gso_args args);
 
-#define sockopt_int_warn(_proto, _sa, _sock, _lvl, _opt, _want) \
-    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = false, .is_bool = false, .sa = _sa, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
+#define sockopt_int_warn(_proto, _asp, _sock, _lvl, _opt, _want) \
+    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = false, .is_bool = false, .asp = _asp, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
 
-#define sockopt_bool_warn(_proto, _sa, _sock, _lvl, _opt, _want) \
-    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = false, .is_bool = true, .sa = _sa, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
+#define sockopt_bool_warn(_proto, _asp, _sock, _lvl, _opt, _want) \
+    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = false, .is_bool = true, .asp = _asp, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
 
-#define sockopt_int_fatal(_proto, _sa, _sock, _lvl, _opt, _want) \
-    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = true, .is_bool = false, .sa = _sa, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
+#define sockopt_int_fatal(_proto, _asp, _sock, _lvl, _opt, _want) \
+    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = true, .is_bool = false, .asp = _asp, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
 
-#define sockopt_bool_fatal(_proto, _sa, _sock, _lvl, _opt, _want) \
-    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = true, .is_bool = true, .sa = _sa, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
+#define sockopt_bool_fatal(_proto, _asp, _sock, _lvl, _opt, _want) \
+    gdnsd_sockopt_idem_int_((struct gso_args){.sock = _sock, .level = _lvl, .optname = _opt, .wantval = _want, .fatal = true, .is_bool = true, .asp = _asp, .level_str = #_lvl, .optname_str = #_opt, .proto_str = #_proto})
 
 #endif // GDNSD_NET_H

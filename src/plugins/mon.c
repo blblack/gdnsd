@@ -462,14 +462,14 @@ void gdnsd_mon_start(struct ev_loop* mloop)
 F_NONNULL
 static bool addr_eq(const struct anysin* a, const struct anysin* b)
 {
-    gdnsd_assume(a->sa.sa_family == AF_INET || a->sa.sa_family == AF_INET6);
+    gdnsd_assume(a->s.sa.sa_family == AF_INET || a->s.sa.sa_family == AF_INET6);
 
     bool rv = false;
-    if (a->sa.sa_family == b->sa.sa_family) {
-        if (a->sa.sa_family == AF_INET)
-            rv = (a->sin4.sin_addr.s_addr == b->sin4.sin_addr.s_addr);
+    if (a->s.sa.sa_family == b->s.sa.sa_family) {
+        if (a->s.sa.sa_family == AF_INET)
+            rv = (a->s.sin4.sin_addr.s_addr == b->s.sin4.sin_addr.s_addr);
         else
-            rv = !memcmp(a->sin6.sin6_addr.s6_addr, b->sin6.sin6_addr.s6_addr, 16);
+            rv = !memcmp(a->s.sin6.sin6_addr.s6_addr, b->s.sin6.sin6_addr.s6_addr, 16);
     }
     return rv;
 }

@@ -126,11 +126,11 @@ static gdnsd_sttl_t plugin_static_resolve(unsigned resnum V_UNUSED, const unsign
         gdnsd_result_add_cname(result, resources[resnum].dname);
     } else if (qtype == DNS_TYPE_A) {
         gdnsd_assert(resources[resnum].is_addr);
-        if (resources[resnum].addr.sa.sa_family == AF_INET)
+        if (resources[resnum].addr.s.sa.sa_family == AF_INET)
             gdnsd_result_add_anysin(result, &resources[resnum].addr);
     } else if (qtype == DNS_TYPE_AAAA) {
         gdnsd_assert(resources[resnum].is_addr);
-        if (resources[resnum].addr.sa.sa_family == AF_INET6)
+        if (resources[resnum].addr.s.sa.sa_family == AF_INET6)
             gdnsd_result_add_anysin(result, &resources[resnum].addr);
     }
 

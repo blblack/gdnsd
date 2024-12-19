@@ -115,7 +115,7 @@ static enum as_af config_addrs(struct addrstate* as, enum as_af as_af, const cha
         if (addr_err)
             log_fatal("plugin_simplefo: resource %s: parsing '%s' as an IP address failed: %s", resname, addr_txt, gai_strerror(addr_err));
 
-        const bool ipv6 = as->addrs[which].sa.sa_family == AF_INET6;
+        const bool ipv6 = as->addrs[which].s.sa.sa_family == AF_INET6;
         if (as_af == A_IPv6 && !ipv6)
             log_fatal("plugin_simplefo: resource %s (%s): '%s' is not an IPv6 address", resname, stanza, addr_txt);
         else if (as_af == A_IPv4 && ipv6)
@@ -131,9 +131,9 @@ static enum as_af config_addrs(struct addrstate* as, enum as_af as_af, const cha
     free(svc_names);
 
     if (as_af == A_AUTO) {
-        if (as->addrs[A_PRI].sa.sa_family != as->addrs[A_SEC].sa.sa_family)
+        if (as->addrs[A_PRI].s.sa.sa_family != as->addrs[A_SEC].s.sa.sa_family)
             log_fatal("plugin_simplefo: resource %s (%s): primary and secondary must be same address family (IPv4 or IPv6)", resname, stanza);
-        return as->addrs[A_PRI].sa.sa_family == AF_INET6 ? A_IPv6 : A_IPv4;
+        return as->addrs[A_PRI].s.sa.sa_family == AF_INET6 ? A_IPv6 : A_IPv4;
     }
 
     vscf_hash_iterate_const(cfg, true, bad_res_opt, resname);

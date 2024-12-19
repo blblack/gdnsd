@@ -98,14 +98,14 @@ static void mon_interval_cb(struct ev_loop* loop, struct ev_timer* t, const int 
 
     log_debug("plugin_tcp_connect: Starting state poll of %s", md->desc);
 
-    const int sock = socket(md->addr.sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
+    const int sock = socket(md->addr.s.sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
     if (sock == -1) {
         log_err("plugin_tcp_connect: Failed to create monitoring socket: %s", logf_errno());
         return;
     }
 
     bool success = false;
-    if (likely(connect(sock, &md->addr.sa, md->addr.len) == -1)) {
+    if (likely(connect(sock, &md->addr.s.sa, md->addr.len) == -1)) {
         switch (errno) {
         case EINPROGRESS:
             // this is the normal case, where nonblock connect
@@ -253,11 +253,11 @@ static void plugin_tcp_connect_add_mon_addr(const char* desc, const char* svc_na
         log_fatal("plugin_tcp_connect: BUG: did not find expected service_type %s", svc_name);
 
     memcpy(&this_mon->addr, addr, sizeof(this_mon->addr));
-    if (this_mon->addr.sa.sa_family == AF_INET) {
-        this_mon->addr.sin4.sin_port = htons(this_mon->tcp_svc->port);
+    if (this_mon->addr.s.sa.sa_family == AF_INET) {
+        this_mon->addr.s.sin4.sin_port = htons(this_mon->tcp_svc->port);
     } else {
-        gdnsd_assume(this_mon->addr.sa.sa_family == AF_INET6);
-        this_mon->addr.sin6.sin6_port = htons(this_mon->tcp_svc->port);
+        gdnsd_assume(this_mon->addr.s.sa.sa_family == AF_INET6);
+        this_mon->addr.s.sin6.sin6_port = htons(this_mon->tcp_svc->port);
     }
 
     this_mon->tcp_state = TCP_STATE_WAITING;

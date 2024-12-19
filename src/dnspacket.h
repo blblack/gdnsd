@@ -49,7 +49,7 @@ union pkt {
 };
 
 F_HOT F_NONNULLX(1, 2, 3)
-unsigned process_dns_query(struct dnsp_ctx* ctx, const struct anysin* sa, union pkt* pkt, struct dso_state* dso, const unsigned packet_len);
+unsigned process_dns_query(struct dnsp_ctx* ctx, const struct anysin* asp, union pkt* pkt, struct dso_state* dso, const unsigned packet_len);
 
 F_NONNULL F_WUNUSED F_RETNN
 struct dnsp_ctx* dnspacket_ctx_init_udp(struct dns_stats** stats_out, const bool is_ipv6);

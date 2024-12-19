@@ -175,9 +175,9 @@ static void config_item_addrs(struct aitem* res_item, const char* res_name, cons
     int addr_err = gdnsd_anysin_getaddrinfo(addr_txt, NULL, &res_item->as[0].addr);
     if (addr_err)
         log_fatal("plugin_weighted: resource '%s' (%s): item '%s': parsing '%s' as an IP address failed: %s", res_name, stanza, item_name, addr_txt, gai_strerror(addr_err));
-    if (ipv6 && res_item->as[0].addr.sa.sa_family != AF_INET6)
+    if (ipv6 && res_item->as[0].addr.s.sa.sa_family != AF_INET6)
         log_fatal("plugin_weighted: resource '%s' (%s): item '%s': '%s' is IPv4, was expecting IPv6", res_name, stanza, item_name, addr_txt);
-    else if (!ipv6 && res_item->as[0].addr.sa.sa_family != AF_INET)
+    else if (!ipv6 && res_item->as[0].addr.s.sa.sa_family != AF_INET)
         log_fatal("plugin_weighted: resource '%s' (%s): item '%s': '%s' is IPv6, was expecting IPv4", res_name, stanza, item_name, addr_txt);
 
     if (addrset->num_svcs) {
@@ -229,9 +229,9 @@ static bool config_addr_group_addr(const char* lb_name, const unsigned lb_name_l
     int addr_err = gdnsd_anysin_getaddrinfo(addr_txt, NULL, &res_item->as[lb_idx].addr);
     if (addr_err)
         log_fatal("plugin_weighted: resource '%s', group '%s', addr '%s': parsing '%s' as an IP address failed: %s", res_name, item_name, lb_name, addr_txt, gai_strerror(addr_err));
-    if (ipv6 && res_item->as[lb_idx].addr.sa.sa_family != AF_INET6)
+    if (ipv6 && res_item->as[lb_idx].addr.s.sa.sa_family != AF_INET6)
         log_fatal("plugin_weighted: resource '%s' (%s): item '%s': '%s' is IPv4, was expecting IPv6", res_name, stanza, item_name, addr_txt);
-    else if (!ipv6 && res_item->as[lb_idx].addr.sa.sa_family != AF_INET)
+    else if (!ipv6 && res_item->as[lb_idx].addr.s.sa.sa_family != AF_INET)
         log_fatal("plugin_weighted: resource '%s' (%s): item '%s': '%s' is IPv6, was expecting IPv4", res_name, stanza, item_name, addr_txt);
 
     if (addrset->num_svcs) {
@@ -575,11 +575,11 @@ static void config_auto(struct wres* res, vscf_data_t* res_cfg)
         int addr_err = gdnsd_anysin_getaddrinfo(first_addr_txt, NULL, &temp_sin);
         if (addr_err)
             log_fatal("plugin_weighted: resource '%s' (direct): group '%s': item '%s': could not parse '%s' as an IP address: %s", res->name, first_name, lb_name, first_addr_txt, gai_strerror(addr_err));
-        if (temp_sin.sa.sa_family == AF_INET6) {
+        if (temp_sin.s.sa.sa_family == AF_INET6) {
             res->addrs_v6 = xcalloc(sizeof(*res->addrs_v6));
             config_addrset(res->name, "direct", true, res->addrs_v6, res_cfg);
         } else {
-            gdnsd_assume(temp_sin.sa.sa_family == AF_INET);
+            gdnsd_assume(temp_sin.s.sa.sa_family == AF_INET);
             res->addrs_v4 = xcalloc(sizeof(*res->addrs_v4));
             config_addrset(res->name, "direct", false, res->addrs_v4, res_cfg);
         }
@@ -594,11 +594,11 @@ static void config_auto(struct wres* res, vscf_data_t* res_cfg)
             config_cnameset(res->name, "direct", res->cnames, res_cfg);
         } else {
             // was a valid address, try addrset mode
-            if (temp_sin.sa.sa_family == AF_INET6) {
+            if (temp_sin.s.sa.sa_family == AF_INET6) {
                 res->addrs_v6 = xcalloc(sizeof(*res->addrs_v6));
                 config_addrset(res->name, "direct", true, res->addrs_v6, res_cfg);
             } else {
-                gdnsd_assume(temp_sin.sa.sa_family == AF_INET);
+                gdnsd_assume(temp_sin.s.sa.sa_family == AF_INET);
                 res->addrs_v4 = xcalloc(sizeof(*res->addrs_v4));
                 config_addrset(res->name, "direct", false, res->addrs_v4, res_cfg);
             }

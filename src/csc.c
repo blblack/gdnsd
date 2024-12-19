@@ -95,16 +95,16 @@ static bool tcp_sock_connect(struct csc* csc, const char* tcp_addr, const unsign
     const int addr_err = gdnsd_anysin_fromstr(csc->path, 0, &addr);
     if (addr_err)
         log_fatal("Could not parse TCP address '%s': %s", csc->path, gai_strerror(addr_err));
-    gdnsd_assume(addr.sa.sa_family == AF_INET || addr.sa.sa_family == AF_INET6);
-    if (!((addr.sa.sa_family == AF_INET) ? addr.sin4.sin_port : addr.sin6.sin6_port))
+    gdnsd_assume(addr.s.sa.sa_family == AF_INET || addr.s.sa.sa_family == AF_INET6);
+    if (!((addr.s.sa.sa_family == AF_INET) ? addr.s.sin4.sin_port : addr.s.sin6.sin6_port))
         log_fatal("TCP address '%s': non-zero port number required", csc->path);
 
-    csc->fd = socket(addr.sa.sa_family, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+    csc->fd = socket(addr.s.sa.sa_family, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
     if (csc->fd < 0)
         log_fatal("Creating TCP socket failed: %s", logf_errno());
     set_timeout(csc->fd, timeout, "");
 
-    return !!connect(csc->fd, &addr.sa, addr.len);
+    return !!connect(csc->fd, &addr.s.sa, addr.len);
 }
 
 F_NONNULL

@@ -54,7 +54,7 @@ struct dyn_result;
 
 // Push an struct anysin (v4 or v6 addr) into struct dyn_result storage.
 F_NONNULL
-void gdnsd_result_add_anysin(struct dyn_result* result, const struct anysin* sa);
+void gdnsd_result_add_anysin(struct dyn_result* result, const struct anysin* asp);
 
 // Push a CNAME into struct dyn_result storage.
 F_NONNULL

@@ -111,14 +111,14 @@ size_t proxy_parse(struct anysin* sa, union proxy_hdr* hdrp, size_t dlen)
             struct anysin* a = sa;
             memset(a, 0, sizeof(*a));
             if (hdrp->v2.fam == 0x11 && skip_read >= (16U + 12U)) { // TCPv4
-                a->sin4.sin_family = AF_INET;
-                a->sin4.sin_addr.s_addr = hdrp->v2.ipv4.src_addr;
-                a->sin4.sin_port = hdrp->v2.ipv4.src_port;
+                a->s.sin4.sin_family = AF_INET;
+                a->s.sin4.sin_addr.s_addr = hdrp->v2.ipv4.src_addr;
+                a->s.sin4.sin_port = hdrp->v2.ipv4.src_port;
                 a->len = sizeof(struct sockaddr_in);
             } else if (hdrp->v2.fam == 0x21 && skip_read >= (16U + 36U)) { // TCPv6
-                a->sin6.sin6_family = AF_INET6;
-                memcpy(&a->sin6.sin6_addr, hdrp->v2.ipv6.src_addr, 16U);
-                a->sin6.sin6_port = hdrp->v2.ipv6.src_port;
+                a->s.sin6.sin6_family = AF_INET6;
+                memcpy(&a->s.sin6.sin6_addr, hdrp->v2.ipv6.src_addr, 16U);
+                a->s.sin6.sin6_port = hdrp->v2.ipv6.src_port;
                 a->len = sizeof(struct sockaddr_in6);
             } else {
                 log_debug("Proxy v2 parse from %s failed: family %hhu total header len %zu",

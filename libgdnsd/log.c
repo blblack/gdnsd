@@ -329,8 +329,8 @@ const char* gdnsd_logf_ipv6(const uint8_t* ipv6)
 {
     struct anysin tempsin;
     memset(&tempsin, 0, sizeof(tempsin));
-    tempsin.sa.sa_family = AF_INET6;
-    memcpy(tempsin.sin6.sin6_addr.s6_addr, ipv6, 16);
+    tempsin.s.sa.sa_family = AF_INET6;
+    memcpy(tempsin.s.sin6.sin6_addr.s6_addr, ipv6, 16);
     tempsin.len = sizeof(struct sockaddr_in6);
     return gdnsd_logf_anysin_noport(&tempsin);
 }
