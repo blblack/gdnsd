@@ -43,7 +43,7 @@ union proxy_hdr {
                 uint16_t src_port;
                 // cppcheck-suppress unusedStructMember
                 uint16_t dst_port;
-            } ipv4;
+            } v4;
             struct {
                 uint8_t  src_addr[16];
                 // cppcheck-suppress unusedStructMember
@@ -51,15 +51,15 @@ union proxy_hdr {
                 uint16_t src_port;
                 // cppcheck-suppress unusedStructMember
                 uint16_t dst_port;
-            } ipv6;
-        };
+            } v6;
+        } ip;
     } v2;
 };
 
 // retval:
 // 0: failure
 // 1+: PROXY header was this many bytes (<= dlen), please skip past them
-// Note this mutates "sa", overwriting it with the client IP:port info
+// Note this mutates "asp", overwriting it with the client IP:port info
 // supplied by the PROXY protocol.
 size_t proxy_parse(struct anysin* asp, union proxy_hdr* hdrp, size_t dlen);
 
