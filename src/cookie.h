@@ -34,6 +34,10 @@
 // If "key_file" is NULL, a random secret will be generated.
 void cookie_config(const char* key_file);
 
+// Destroy cookie state on shutdown
+// Must happen after iothreads are done using keys and the eventloop has exited
+void cookie_destroy(void);
+
 // Sets up the hourly runtime secret rotation in the main thread ev loop.
 // Without this everything else still "works", but the server secrets and thus
 // the server cookies will last forever and eventually become insecure.

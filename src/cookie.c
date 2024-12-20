@@ -229,16 +229,6 @@ static int safe_write_keyfile(const char* key_fn, const uint8_t* keybuf)
     return (writerv == KDF_KEYBYTES) ? closerv : -1;
 }
 
-// Must happen after iothreads are done using keys and the eventloop has exited
-static void cookie_destroy(void)
-{
-    struct timekeys* kiu = GRCU_OWN_READ(keys_inuse);
-    if (kiu)
-        sodium_free(kiu);
-    if (primary_key)
-        sodium_free(primary_key);
-}
-
 /************* Public functions *************/
 
 void cookie_config(const char* key_file)
@@ -264,8 +254,15 @@ void cookie_config(const char* key_file)
 
     if (sodium_mprotect_noaccess(primary_key))
         log_fatal("sodium_mprotect_noaccess() failed: %s", logf_errno());
+}
 
-    gdnsd_atexit(cookie_destroy);
+void cookie_destroy(void)
+{
+    struct timekeys* kiu = GRCU_OWN_READ(keys_inuse);
+    if (kiu)
+        sodium_free(kiu);
+    if (primary_key)
+        sodium_free(primary_key);
 }
 
 void cookie_runtime_init(struct ev_loop* loop)

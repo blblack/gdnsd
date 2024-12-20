@@ -22,9 +22,6 @@
 
 #include <gdnsd/compiler.h>
 
-F_NONNULL
-void gdnsd_atexit(void (*f)(void));
-
 // css calls this to start an async zone data reload operation
 void spawn_async_zones_reloader_thread(void);
 

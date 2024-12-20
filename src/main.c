@@ -91,23 +91,6 @@ static int killed_by = 0;
 static struct ev_loop* async_reloadz_loop = NULL;
 static ev_async async_reloadz;
 
-// custom atexit-like stuff for resource deallocation
-
-static void (**exitfuncs)(void) = NULL;
-static unsigned exitfuncs_pending = 0;
-
-void gdnsd_atexit(void (*f)(void))
-{
-    exitfuncs = xrealloc_n(exitfuncs, exitfuncs_pending + 1, sizeof(*exitfuncs));
-    exitfuncs[exitfuncs_pending++] = f;
-}
-
-static void atexit_execute(void)
-{
-    while (exitfuncs_pending--)
-        exitfuncs[exitfuncs_pending]();
-}
-
 noreturn F_NONNULL
 static void syserr_for_ev(const char* msg)
 {
@@ -582,7 +565,8 @@ static struct css* runtime_execute(const char* argv0, struct socks_cfg* socks_cf
     css_send_stats_handoff(css);
 
     // deallocate resources
-    atexit_execute();
+    if (!gcfg->disable_cookies)
+        cookie_destroy();
 
     // We delete this last, because it will break connections with random
     // control socket clients, who may then try to reconnect, and in the case
